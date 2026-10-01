@@ -227,12 +227,13 @@ extension AppDelegate {
         }
         if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "available whenever you log in" }
         setupDescription?.stringValue = "a browser for your agent."
-        setupSummary?.stringValue = setupComplete ? "open it anytime from the menu bar. automation pauses while you use it." : (mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar.")
+        setupSummary?.isHidden = setupComplete
+        setupSummary?.stringValue = mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar."
         setupPrimary?.isEnabled = runtimeReady
         setupLog?.isHidden = startupError == nil && runtimeIssues.isEmpty
         if let window = setupWindow, let view = window.contentView {
             view.layoutSubtreeIfNeeded()
-            let height: CGFloat = installedCorrectly ? 432 : 508
+            let height: CGFloat = installedCorrectly ? (setupComplete ? 398 : 432) : 508
             if abs(view.frame.height - height) > 1 {
                 var frame = window.frame
                 let difference = height - view.frame.height
