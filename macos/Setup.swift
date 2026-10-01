@@ -13,7 +13,8 @@ extension AppDelegate {
                 self.permissionsChecked = true
                 self.notificationDetermined = settings.authorizationStatus != .notDetermined
                 self.notificationAllowed = settings.authorizationStatus == .authorized
-                self.notificationDesktop = settings.alertSetting == .enabled
+                // Alert authorization stays enabled when Desktop is unchecked; style becomes .none.
+                self.notificationDesktop = settings.alertSetting == .enabled && settings.alertStyle != .none
                 self.notificationCenterEnabled = settings.notificationCenterSetting == .enabled
                 switch settings.alertStyle {
                 case .banner: self.notificationStyle = "temporary"
