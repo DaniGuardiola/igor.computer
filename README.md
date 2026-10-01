@@ -144,3 +144,5 @@ Opening notifications or login approval in System Settings shows a floating guid
 The app now bundles Node and its service dependencies; it runs independently of the source checkout. `npm run package:dmg` creates a local development disk image. Sparkle is embedded for signed app updates, but development builds have no published update feed. Homebrew cask template and release requirements are in [distribution/README.md](distribution/README.md). Public distribution, notarization, and an actual update installation remain release work.
 
 Igor integration is deferred while this standalone app is polished. Existing Igor browser fallbacks remain in use.
+
+The settings helper uses the same rounded material treatment as extend.computer. When existing Accessibility trust exposes the exact control, it sits beside that control and points at it; otherwise it stays attached to the Settings window. It never requests Accessibility permission for this feature. It flips sides at screen edges, leaves the toggle unobstructed, and removes the pointer when the target cannot be verified.
