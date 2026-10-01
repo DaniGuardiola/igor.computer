@@ -13,6 +13,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
     let appearance = GuideAppearance()
     let kind: String
     var target: CGRect?
+    var estimated = false
     var lastWindowFrame: CGRect?
     var targetCheckRunning = false
     var lastTargetCheck = Date.distantPast
@@ -56,11 +57,14 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         lastWindowFrame = frame
         guard let screen = NSScreen.screens.max(by: { $0.frame.intersection(frame).width * $0.frame.intersection(frame).height < $1.frame.intersection(frame).width * $1.frame.intersection(frame).height }) else { return }
         let visible = screen.visibleFrame
-        if let target = target, frame.insetBy(dx: -5, dy: -5).contains(target),
+        let estimate = kind == "notifications" && ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 ? GuideEstimate.notification(notificationStep(), in: frame) : nil
+        let pointerTarget = target ?? estimate
+        estimated = target == nil && estimate != nil
+        if let target = pointerTarget, frame.insetBy(dx: -5, dy: -5).contains(target),
            let placement = GuidePlacement.nextTo(target, size: panel.frame.size, visible: visible) {
             appearance.side = placement.side
             appearance.pointerY = placement.pointerY
-            appearance.targeted = true
+            appearance.targeted = !estimated
             panel.setFrameOrigin(placement.frame.origin)
         } else if let placement = GuidePlacement.nextTo(frame, size: panel.frame.size, visible: visible) {
             // Without control access, point to the Settings window instead.

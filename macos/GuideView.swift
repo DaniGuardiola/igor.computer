@@ -118,3 +118,29 @@ struct GuidePlacement {
         return .init(frame: CGRect(origin: CGPoint(x: x, y: y), size: size), side: side, pointerY: pointerY)
     }
 }
+
+// Default macOS 26+ app-notification layout, measured in window coordinates.
+// Estimates are visual guidance only; notification readiness uses native APIs.
+enum GuideEstimate {
+    static func notification(_ step: NotificationGuideStep, in window: CGRect) -> CGRect? {
+        guard window.width >= 650, window.width <= 1000, window.height >= 430 else { return nil }
+        let top: CGFloat
+        let x: CGFloat
+        let size: CGSize
+        switch step {
+        case .allow:
+            top = 73; size = CGSize(width: 44, height: 20)
+            x = window.maxX - 30 - size.width
+        case .desktop:
+            top = 146; size = CGSize(width: 88, height: 105)
+            let contentWidth = window.width - 230
+            x = window.minX + 230 + contentWidth * (119 / 510) - size.width / 2
+        case .persistent:
+            top = 282; size = CGSize(width: 82, height: 16)
+            x = window.maxX - 30 - size.width
+        case .ready: return nil
+        }
+        // Window tracker applies a -3pt decoration adjustment.
+        return CGRect(x: x, y: window.maxY + 3 - top - size.height, width: size.width, height: size.height)
+    }
+}

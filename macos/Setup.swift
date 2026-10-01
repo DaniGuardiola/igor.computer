@@ -42,7 +42,7 @@ extension AppDelegate {
                 "notifications": notificationReady && notificationError == nil,
                 "notificationSettings": ["allowed": notificationAllowed, "desktop": notificationDesktop, "style": notificationStyle],
                 "login": loginReady,
-                "guide": ["accessibilityTrusted": AXIsProcessTrusted(), "targetFound": settingsGuide?.target != nil, "targeted": settingsGuide?.appearance.targeted == true]
+                "guide": ["accessibilityTrusted": AXIsProcessTrusted(), "targetFound": settingsGuide?.target != nil, "targeted": settingsGuide?.appearance.targeted == true, "estimated": settingsGuide?.estimated == true, "pointer": String(describing: settingsGuide?.appearance.side ?? .none)]
             ])
             let url = directory.appendingPathComponent("app-status.json")
             try data.write(to: url, options: .atomic)

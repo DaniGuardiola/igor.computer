@@ -35,6 +35,20 @@ import AppKit
   assert(fallback.side == .left)
   assert(!fallback.frame.intersects(settingsWindow))
   assert(abs(fallback.frame.minY + fallback.pointerY - settingsWindow.midY) < 1)
+  let defaultWindow = CGRect(x: 100, y: 100, width: 740, height: 625)
+  for step: NotificationGuideStep in [.allow, .desktop, .persistent] {
+   let estimate = GuideEstimate.notification(step, in: defaultWindow)!
+   assert(defaultWindow.contains(estimate))
+   let moved = GuideEstimate.notification(step, in: defaultWindow.offsetBy(dx: 120, dy: -40))!
+   assert(moved == estimate.offsetBy(dx: 120, dy: -40))
+   let placement = GuidePlacement.nextTo(estimate, size: size, visible: screen)!
+   assert(!placement.frame.intersects(estimate))
+   assert(abs(placement.frame.minY + placement.pointerY - estimate.midY) < 1)
+  }
+  assert(abs(GuideEstimate.notification(.desktop, in: defaultWindow)!.minX - (defaultWindow.minX + 305)) < 1)
+  assert(GuideEstimate.notification(.ready, in: defaultWindow) == nil)
+  assert(GuideEstimate.notification(.allow, in: CGRect(x: 0, y: 0, width: 400, height: 400)) == nil)
+  print("PASS: estimated controls track window movement without covering the control.")
   let narrow = CGRect(x: 0, y: 0, width: 320, height: 800)
   assert(GuidePlacement.nextTo(toggle, size: size, visible: narrow) == nil)
   let bottomToggle = CGRect(x: 500, y: 0, width: 44, height: 20)
