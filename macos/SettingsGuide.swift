@@ -1,6 +1,7 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
+import QuartzCore
 
 @MainActor
 final class SettingsGuide: NSObject, NSWindowDelegate {
@@ -18,6 +19,10 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
     var lastTargetCheck = Date.distantPast
     var timer: Timer?
     var closed = false
+    var hasPresented = false
+    var stepChanged = false
+    var frameStableSince = Date()
+    let started = Date()
 
     init(kind: String, notificationStep: @escaping () -> NotificationGuideStep = { .allow }, isComplete: @escaping () -> Bool, onComplete: @escaping () -> Void) {
         self.kind = kind
@@ -36,11 +41,12 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.delegate = self
         panel.contentView = NSHostingView(rootView: GuideView(kind: kind, appearance: appearance))
-        panel.center()
+        panel.alphaValue = 0
+        panel.animationBehavior = .none
+        appearance.notificationStep = notificationStep()
         tracker.onFrameChange = { [weak self] frame in self?.attach(to: frame) }
         tracker.onTrackingEnded = { [weak self] in self?.close() }
         tracker.startTracking(promptIfNeeded: false)
-        panel.orderFrontRegardless()
         timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
@@ -48,6 +54,8 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
     }
 
     func attach(to frame: CGRect) {
+        guard !closed else { return }
+        if lastWindowFrame != frame { frameStableSince = Date() }
         if let previous = lastWindowFrame, previous != frame {
             if previous.size == frame.size {
                 target = target?.offsetBy(dx: frame.minX - previous.minX, dy: frame.minY - previous.minY)
@@ -64,13 +72,13 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
             appearance.side = placement.side
             appearance.pointerY = placement.pointerY
             appearance.targeted = !estimated
-            panel.setFrameOrigin(placement.frame.origin)
+            move(to: placement.frame.origin)
         } else if let placement = GuidePlacement.nextTo(frame, size: panel.frame.size, visible: visible) {
             // Without control access, point to the Settings window instead.
             appearance.side = placement.side
             appearance.pointerY = placement.pointerY
             appearance.targeted = false
-            panel.setFrameOrigin(placement.frame.origin)
+            move(to: placement.frame.origin)
         } else {
             appearance.side = .none
             appearance.targeted = false
@@ -78,17 +86,48 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
             if point.y < visible.minY { point.y = min(visible.maxY - panel.frame.height, frame.maxY - panel.frame.height); point.x = frame.maxX + 8 }
             point.x = max(visible.minX, min(point.x, visible.maxX - panel.frame.width))
             point.y = max(visible.minY, min(point.y, visible.maxY - panel.frame.height))
-            panel.setFrameOrigin(point)
+            move(to: point)
         }
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        if front == "com.apple.systempreferences" || front == Bundle.main.bundleIdentifier { panel.orderFrontRegardless() }
-        else { panel.orderOut(nil) }
+        // Never reveal the panel at a provisional location before Settings opens.
+        if !hasPresented {
+            guard GuidePresentation.canReveal(settingsForeground: front == "com.apple.systempreferences", elapsed: Date().timeIntervalSince(started), stableFor: Date().timeIntervalSince(frameStableSince)) else { return }
+        }
+        if front == "com.apple.systempreferences" || (hasPresented && front == Bundle.main.bundleIdentifier) {
+            let entering = !panel.isVisible
+            panel.orderFrontRegardless()
+            if entering || stepChanged { callAttention(entering: entering) }
+            hasPresented = true
+            stepChanged = false
+        } else { panel.orderOut(nil) }
+    }
+
+    private func move(to point: NSPoint) {
+        guard panel.frame.origin != point else { return }
+        if hasPresented && panel.isVisible && stepChanged && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(NSRect(origin: point, size: panel.frame.size), display: true)
+            }
+        } else { panel.setFrameOrigin(point) }
+    }
+
+    private func callAttention(entering: Bool) {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { panel.alphaValue = 1; return }
+        panel.alphaValue = entering ? 0 : 0.86
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = entering ? 0.2 : 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
     }
 
     func refresh() {
         guard !closed else { return }
         let step = notificationStep()
         if appearance.notificationStep != step {
+            stepChanged = hasPresented
             appearance.notificationStep = step
             target = nil
             lastTargetCheck = .distantPast

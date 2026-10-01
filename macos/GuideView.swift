@@ -142,3 +142,10 @@ enum GuideEstimate {
         return CGRect(x: x, y: window.maxY + 3 - top - size.height, width: size.width, height: size.height)
     }
 }
+
+// Wait for the opening transition and window geometry to settle before revealing.
+enum GuidePresentation {
+    static func canReveal(settingsForeground: Bool, elapsed: TimeInterval, stableFor: TimeInterval) -> Bool {
+        settingsForeground && elapsed >= 0.2 && stableFor >= 0.12
+    }
+}
