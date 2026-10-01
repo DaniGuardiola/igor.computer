@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var mode = "starting"
     var helpMessage = ""
     var opening = false
+    var settingsReturn: SettingsReturnObserver?
     var settingsGuide: SettingsGuide?
     var setupWindow: NSWindow?
     var setupRows: [String: NSView] = [:]
@@ -330,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if sender === setupWindow { sender.orderOut(nil); return false }
+        if sender === setupWindow { settingsReturn?.stop(); sender.orderOut(nil); return false }
         hideBrowser(); return false
     }
 

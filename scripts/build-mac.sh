@@ -8,7 +8,7 @@ node_binary="$PWD/.deps/node/bin/node"
 app_dir="$project_dir/build/Igor Browser.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources" "$app_dir/Contents/Frameworks"
 swiftc -target arm64-apple-macosx13.0 -swift-version 5 -O -module-cache-path build/module-cache \
-  macos/App.swift macos/Setup.swift macos/SettingsGuide.swift macos/Vendor/SettingsWindowTracker.swift \
+  macos/App.swift macos/Setup.swift macos/SettingsGuide.swift macos/SettingsReturn.swift macos/Vendor/SettingsWindowTracker.swift \
   -o "$app_dir/Contents/MacOS/IgorBrowser" \
   -F .deps/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -framework AppKit -framework WebKit -framework UserNotifications -framework ServiceManagement

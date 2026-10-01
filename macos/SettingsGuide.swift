@@ -62,6 +62,14 @@ extension AppDelegate {
     @MainActor func openSettingsGuide(_ kind: String) {
         settingsGuide?.close()
         setupKeepOpen = true
+        settingsReturn?.stop()
+        settingsReturn = SettingsReturnObserver { [weak self] in
+            guard let self = self, let window = self.setupWindow, !window.isMiniaturized else { return }
+            self.settingsGuide?.close()
+            NSApp.unhide(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
         if kind == "login" { SMAppService.openSystemSettingsLoginItems() }
         else { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!) }
         settingsGuide = SettingsGuide(kind: kind, isComplete: { [weak self] in

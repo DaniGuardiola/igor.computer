@@ -50,6 +50,7 @@ extension AppDelegate {
     func makeSetupWindow() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "igor browser"
+        window.hidesOnDeactivate = false
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.center()
@@ -161,6 +162,7 @@ extension AppDelegate {
     }
 
     @objc func openBrowserFromSetup() {
+        settingsReturn?.stop()
         setupWindow?.orderOut(nil)
         showBrowser()
     }
@@ -220,7 +222,7 @@ extension AppDelegate {
         }
     }
 
-    @objc func closeSetup() { setupWindow?.orderOut(nil) }
+    @objc func closeSetup() { settingsReturn?.stop(); setupWindow?.orderOut(nil) }
     @objc func openApplications() { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications")) }
     @objc func openLog() {
         NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor Browser/service.log"))
