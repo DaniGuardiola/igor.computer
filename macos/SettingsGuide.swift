@@ -62,6 +62,12 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
             appearance.pointerY = placement.pointerY
             appearance.targeted = true
             panel.setFrameOrigin(placement.frame.origin)
+        } else if let placement = GuidePlacement.nextTo(frame, size: panel.frame.size, visible: visible) {
+            // Without control access, point to the Settings window instead.
+            appearance.side = placement.side
+            appearance.pointerY = placement.pointerY
+            appearance.targeted = false
+            panel.setFrameOrigin(placement.frame.origin)
         } else {
             appearance.side = .none
             appearance.targeted = false

@@ -30,6 +30,11 @@ import AppKit
   assert(left.side == .right)
   assert(!left.frame.intersects(edgeToggle))
   assert(screen.contains(left.frame))
+  let settingsWindow = CGRect(x: 350, y: 150, width: 260, height: 480)
+  let fallback = GuidePlacement.nextTo(settingsWindow, size: size, visible: screen)!
+  assert(fallback.side == .left)
+  assert(!fallback.frame.intersects(settingsWindow))
+  assert(abs(fallback.frame.minY + fallback.pointerY - settingsWindow.midY) < 1)
   let narrow = CGRect(x: 0, y: 0, width: 320, height: 800)
   assert(GuidePlacement.nextTo(toggle, size: size, visible: narrow) == nil)
   let bottomToggle = CGRect(x: 500, y: 0, width: 44, height: 20)

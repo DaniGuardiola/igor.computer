@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import UserNotifications
 import ServiceManagement
 
@@ -40,7 +41,8 @@ extension AppDelegate {
                 "checkedAt": Date().timeIntervalSince1970 * 1000,
                 "notifications": notificationReady && notificationError == nil,
                 "notificationSettings": ["allowed": notificationAllowed, "desktop": notificationDesktop, "style": notificationStyle],
-                "login": loginReady
+                "login": loginReady,
+                "guide": ["accessibilityTrusted": AXIsProcessTrusted(), "targetFound": settingsGuide?.target != nil, "targeted": settingsGuide?.appearance.targeted == true]
             ])
             let url = directory.appendingPathComponent("app-status.json")
             try data.write(to: url, options: .atomic)
