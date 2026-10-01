@@ -19,8 +19,8 @@ enum NotificationGuideStep: Equatable {
     var instruction: String {
         switch self {
         case .allow: return "turn on allow notifications so your agent can ask for help."
-        case .desktop, .notificationCenter: return "desktop + notification center recommended. optional — close settings to skip."
-        case .persistent: return "persistent keeps requests visible until dismissed. optional — close settings to skip."
+        case .desktop, .notificationCenter: return "desktop + notification center recommended. optional · close settings to skip."
+        case .persistent: return "persistent keeps requests visible until dismissed. optional · close settings to skip."
         case .ready: return "your agent can ask for help without opening a window."
         }
     }

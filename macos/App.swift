@@ -289,7 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if window != nil { return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 850),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "igor browser — you have control"
+        window.title = "igor browser · you have control"
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("IgorBrowserViewer")
@@ -297,9 +297,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let view = NSView()
         window.contentView = view
         let label = NSTextField(labelWithString: "automation is paused while you use this browser.")
-        let done = NSButton(title: "done — return to agent", target: self, action: #selector(finish))
+        let done = NSButton(title: "done · return to agent", target: self, action: #selector(finish))
         done.bezelStyle = .rounded
-        let hide = NSButton(title: "hide — keep paused", target: self, action: #selector(hideBrowser))
+        let hide = NSButton(title: "hide · keep paused", target: self, action: #selector(hideBrowser))
         hide.bezelStyle = .rounded
         let bar = NSStackView(views: [label, hide, done])
         bar.spacing = 16
