@@ -14,15 +14,15 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         self.onComplete = onComplete
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 410, height: 155), styleMask: [.titled, .closable, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
-        panel.title = "Igor Browser"
+        panel.title = "igor browser"
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.delegate = self
-        let title = NSTextField(labelWithString: kind == "login" ? "Allow Igor Browser at login" : "Allow requests for human help")
+        let title = NSTextField(labelWithString: kind == "login" ? "allow igor browser at login" : "allow requests for human help")
         title.font = .systemFont(ofSize: 15, weight: .semibold)
-        let detail = NSTextField(wrappingLabelWithString: kind == "login" ? "Find Igor Browser under Open at Login or Allow in the Background, then turn it on. This helper closes when startup is enabled." : "Choose Igor Browser, turn on Allow Notifications, and choose Banners or Alerts. This helper closes when alerts are enabled.")
+        let detail = NSTextField(wrappingLabelWithString: kind == "login" ? "find igor browser under open at login or allow in the background, then turn it on. this helper closes when startup is enabled." : "choose igor browser, turn on allow notifications, and choose banners or alerts. this helper closes when alerts are enabled.")
         detail.textColor = .secondaryLabelColor
         let stack = NSStackView(views: [title, detail]); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -61,7 +61,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
 extension AppDelegate {
     @MainActor func openSettingsGuide(_ kind: String) {
         settingsGuide?.close()
-        setupWindow?.orderOut(nil)
+        setupKeepOpen = true
         if kind == "login" { SMAppService.openSystemSettingsLoginItems() }
         else { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!) }
         settingsGuide = SettingsGuide(kind: kind, isComplete: { [weak self] in
@@ -69,8 +69,7 @@ extension AppDelegate {
         }, onComplete: { [weak self] in
             self?.settingsGuide = nil
             self?.refreshSetup()
-            // Return to setup only while another step remains unfinished.
-            if self?.setupComplete == false { self?.showSetup() }
+            // Keep the settings window in place while the guide finishes.
         })
     }
 }

@@ -29,18 +29,18 @@ extension AppDelegate {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let data = try JSONSerialization.data(withJSONObject: [
-                "checkedAt": Date().timeIntervalSince1970 * 1000,
+                "checkedat": Date().timeIntervalSince1970 * 1000,
                 "notifications": notificationReady && notificationError == nil,
                 "login": loginReady
             ])
             let url = directory.appendingPathComponent("app-status.json")
             try data.write(to: url, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-        } catch { startupError = "Could not save app readiness: " + error.localizedDescription }
+        } catch { startupError = "could not save app readiness: " + error.localizedDescription }
     }
 
     @objc func showSetup(_ sender: Any? = nil) {
-        setupKeepOpen = (sender as? NSMenuItem)?.title == "Settings…" || CommandLine.arguments.contains("--setup")
+        setupKeepOpen = (sender as? NSMenuItem)?.title == "settings…" || CommandLine.arguments.contains("--setup")
         if setupWindow == nil { makeSetupWindow() }
         renderSetup()
         NSApp.activate(ignoringOtherApps: true)
@@ -49,7 +49,7 @@ extension AppDelegate {
 
     func makeSetupWindow() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Igor Browser"
+        window.title = "igor browser"
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.center()
@@ -62,9 +62,9 @@ extension AppDelegate {
         globe.contentTintColor = .controlAccentColor
         globe.symbolConfiguration = .init(pointSize: 32, weight: .regular)
         globe.widthAnchor.constraint(equalToConstant: 42).isActive = true
-        let title = NSTextField(labelWithString: "Igor Browser")
+        let title = NSTextField(labelWithString: "igor browser")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
-        let subtitle = NSTextField(wrappingLabelWithString: "A private browser, ready in the background.")
+        let subtitle = NSTextField(wrappingLabelWithString: "a browser for your agent.")
         subtitle.font = .systemFont(ofSize: 13)
         subtitle.textColor = .secondaryLabelColor
         let headerText = NSStackView(views: [title, subtitle])
@@ -79,23 +79,23 @@ extension AppDelegate {
         card.layer?.borderColor = NSColor.separatorColor.cgColor
         card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
         let rows: [(String, String, Selector)] = [
-            ("install", "Applications", #selector(openApplications)),
-            ("runtime", "Browser", #selector(retryRuntime)),
-            ("notifications", "Help notifications", #selector(enableNotifications)),
-            ("login", "Start at login", #selector(toggleLogin))
+            ("install", "applications", #selector(openApplications)),
+            ("runtime", "browser", #selector(retryRuntime)),
+            ("notifications", "help notifications", #selector(enableNotifications)),
+            ("login", "start at login", #selector(toggleLogin))
         ]
         for (key, name, action) in rows {
             let row = NSView()
-            let icon = NSImageView(image: NSImage(systemSymbolName: "circle", accessibilityDescription: "Checking")!)
+            let icon = NSImageView(image: NSImage(systemSymbolName: "circle", accessibilityDescription: "checking")!)
             icon.symbolConfiguration = .init(pointSize: 17, weight: .medium)
             let heading = NSTextField(labelWithString: name)
             heading.font = .systemFont(ofSize: 13, weight: .medium)
-            let detail = NSTextField(wrappingLabelWithString: "Checking…")
+            let detail = NSTextField(wrappingLabelWithString: "checking…")
             detail.font = .systemFont(ofSize: 12)
             detail.textColor = .secondaryLabelColor
             let text = NSStackView(views: [heading, detail])
             text.orientation = .vertical; text.alignment = .leading; text.spacing = 4
-            let button = NSButton(title: "Continue", target: self, action: action)
+            let button = NSButton(title: "continue", target: self, action: action)
             button.bezelStyle = .rounded; button.controlSize = .small
             for subview in [icon, text, button] { subview.translatesAutoresizingMaskIntoConstraints = false; row.addSubview(subview) }
             NSLayoutConstraint.activate([
@@ -125,12 +125,12 @@ extension AppDelegate {
         let summary = NSTextField(wrappingLabelWithString: "")
         summary.font = .systemFont(ofSize: 12)
         summary.textColor = .secondaryLabelColor
-        let done = NSButton(title: "Close", target: self, action: #selector(closeSetup))
+        let done = NSButton(title: "close", target: self, action: #selector(closeSetup))
         done.bezelStyle = .rounded
-        let primary = NSButton(title: "Open Browser", target: self, action: #selector(openBrowserFromSetup))
+        let primary = NSButton(title: "open browser", target: self, action: #selector(openBrowserFromSetup))
         primary.bezelStyle = .rounded; primary.keyEquivalent = "\r"
         primary.bezelColor = .controlAccentColor
-        let logs = NSButton(title: "View Log", target: self, action: #selector(openLog))
+        let logs = NSButton(title: "view log", target: self, action: #selector(openLog))
         logs.bezelStyle = .rounded; logs.controlSize = .small
         let spacer = NSView()
         let footer = NSStackView(views: [logs, spacer, done, primary]); footer.spacing = 10
@@ -169,30 +169,30 @@ extension AppDelegate {
         if setupComplete && !wasSetupComplete && !setupKeepOpen { setupWindow?.orderOut(nil) }
         wasSetupComplete = setupComplete
         let hasRuntime = FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/colima") && FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker")
-        setupLabels["install"]?.stringValue = installedCorrectly ? "Installed in Applications." : "Move Igor Browser to Applications, then open it there."
+        setupLabels["install"]?.stringValue = installedCorrectly ? "installed in applications." : "move igor browser to applications, then open it there."
         setupButtons["install"]?.isHidden = installedCorrectly
-        setupButtons["install"]?.title = "Applications"
-        setupLabels["runtime"]?.stringValue = startupError ?? runtimeIssues.first ?? (runtimeReady ? "Browser and display are ready." : "Starting the private browser. First setup may take a few minutes.")
-        setupButtons["runtime"]?.title = hasRuntime ? "Retry" : "Install Runtime"
+        setupButtons["install"]?.title = "applications"
+        setupLabels["runtime"]?.stringValue = startupError ?? runtimeIssues.first ?? (runtimeReady ? "browser and display are ready." : "starting the private browser. first setup may take a few minutes.")
+        setupButtons["runtime"]?.title = hasRuntime ? "retry" : "install runtime"
         setupButtons["runtime"]?.isHidden = runtimeReady && runtimeIssues.isEmpty && startupError == nil
         setupButtons["runtime"]?.isEnabled = worker?.isRunning != true || mode != "starting"
-        setupLabels["notifications"]?.stringValue = notificationError ?? (notificationReady ? "Allowed. Requests appear without opening a window." : (notificationDetermined ? "Allow notifications and enable alerts in System Settings." : "Allow alerts so your AI can ask for your help."))
-        setupButtons["notifications"]?.title = notificationReady || notificationDetermined ? "Open Settings" : "Allow"
+        setupLabels["notifications"]?.stringValue = notificationError ?? (notificationReady ? "allowed. requests appear without opening a window." : (notificationDetermined ? "allow notifications and enable alerts in system settings." : "allow alerts so your ai can ask for your help."))
+        setupButtons["notifications"]?.title = notificationReady || notificationDetermined ? "open settings" : "allow"
         switch SMAppService.mainApp.status {
         case .enabled:
-            setupLabels["login"]?.stringValue = "Enabled. Your browser will be available after login."
-            setupButtons["login"]?.title = "Turn Off"
+            setupLabels["login"]?.stringValue = "enabled. your browser will be available after login."
+            setupButtons["login"]?.title = "turn off"
         case .requiresApproval:
-            setupLabels["login"]?.stringValue = "Approve Igor Browser in Login Items in System Settings."
-            setupButtons["login"]?.title = "Open Settings"
+            setupLabels["login"]?.stringValue = "approve igor browser in login items in system settings."
+            setupButtons["login"]?.title = "open settings"
         default:
-            setupLabels["login"]?.stringValue = loginReady ? "Automatic startup is off by choice. Open the app when needed." : "Enable automatic startup to keep the browser available."
-            setupButtons["login"]?.title = "Enable"
+            setupLabels["login"]?.stringValue = loginReady ? "automatic startup is off by choice. open the app when needed." : "enable automatic startup to keep the browser available."
+            setupButtons["login"]?.title = "enable"
         }
-        if let error = loginError { setupLabels["login"]?.stringValue = "Could not change startup: " + error }
+        if let error = loginError { setupLabels["login"]?.stringValue = "could not change startup: " + error }
         let checks = ["install": installedCorrectly, "runtime": runtimeReady && runtimeIssues.isEmpty && startupError == nil, "notifications": notificationReady && notificationError == nil, "login": loginReady && loginError == nil]
         for (key, ready) in checks {
-            setupIcons[key]?.image = NSImage(systemSymbolName: ready ? "checkmark.circle.fill" : "exclamationmark.circle", accessibilityDescription: ready ? "Ready" : "Needs attention")
+            setupIcons[key]?.image = NSImage(systemSymbolName: ready ? "checkmark.circle.fill" : "exclamationmark.circle", accessibilityDescription: ready ? "ready" : "needs attention")
             setupIcons[key]?.contentTintColor = ready ? .systemGreen : .systemOrange
         }
         setupRows["install"]?.isHidden = installedCorrectly
@@ -200,12 +200,12 @@ extension AppDelegate {
         setupLoginSwitch?.isHidden = loginNeedsApproval
         setupLoginSwitch?.state = SMAppService.mainApp.status == .enabled ? .on : .off
         setupButtons["login"]?.isHidden = !loginNeedsApproval
-        setupButtons["notifications"]?.title = notificationDetermined ? "Settings…" : "Allow"
-        if runtimeReady && runtimeIssues.isEmpty && startupError == nil { setupLabels["runtime"]?.stringValue = "Ready in the background" }
-        if notificationReady && notificationError == nil { setupLabels["notifications"]?.stringValue = "Alerts when your AI needs you" }
-        if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "Available whenever you log in" }
-        setupDescription?.stringValue = setupComplete ? "Ready when you need it." : "A few steps, then out of your way."
-        setupSummary?.stringValue = setupComplete ? "Open it anytime from the menu bar. Automation pauses while you use it." : (mode == "pending" ? "Your AI is waiting. Finish the steps above to help." : "Finish setup now, or come back from the menu bar.")
+        setupButtons["notifications"]?.title = notificationDetermined ? "settings…" : "allow"
+        if runtimeReady && runtimeIssues.isEmpty && startupError == nil { setupLabels["runtime"]?.stringValue = "ready in the background" }
+        if notificationReady && notificationError == nil { setupLabels["notifications"]?.stringValue = "alerts when your ai needs you" }
+        if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "available whenever you log in" }
+        setupDescription?.stringValue = "a browser for your agent."
+        setupSummary?.stringValue = setupComplete ? "open it anytime from the menu bar. automation pauses while you use it." : (mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar.")
         setupPrimary?.isEnabled = runtimeReady
         setupLog?.isHidden = startupError == nil && runtimeIssues.isEmpty
         if let window = setupWindow, let view = window.contentView {
@@ -231,7 +231,7 @@ extension AppDelegate {
             let brew = "/opt/homebrew/bin/brew"
             guard FileManager.default.isExecutableFile(atPath: brew) else {
                 NSWorkspace.shared.open(URL(string: "https://brew.sh")!)
-                startupError = "Install Homebrew first, then choose Install Runtime."
+                startupError = "install homebrew first, then choose install runtime."
                 renderSetup(); return
             }
             let process = Process()
@@ -246,12 +246,12 @@ extension AppDelegate {
             process.standardOutput = handle; process.standardError = handle
             process.terminationHandler = { [weak self] process in
                 DispatchQueue.main.async {
-                    self?.startupError = process.terminationStatus == 0 ? nil : "Runtime installation failed. Check the log, then retry."
+                    self?.startupError = process.terminationStatus == 0 ? nil : "runtime installation failed. check the log, then retry."
                     self?.worker = nil
                     self?.startService(); self?.refreshSetup()
                 }
             }
-            do { try process.run(); worker = process; mode = "starting"; startupError = "Installing the browser runtime…" }
+            do { try process.run(); worker = process; mode = "starting"; startupError = "installing the browser runtime…" }
             catch { startupError = error.localizedDescription }
         } else {
             worker?.terminationHandler = nil; worker?.terminate(); worker = nil; startupError = nil; runtimeIssues = []; startupStarted = nil

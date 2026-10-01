@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "Igor Browser")
+        item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "igor browser")
         UNUserNotificationCenter.current().delegate = self
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
         if Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") is String,
@@ -86,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
               let script = Bundle.main.url(forResource: "run-service", withExtension: "sh") else { return }
         guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/colima"),
               FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") else {
-            startupError = "The browser runtime is missing. Install Colima and Docker to continue."
+            startupError = "the browser runtime is missing. install colima and docker to continue."
             refreshSetup(); return
         }
         startupStarted = startupStarted ?? Date()
@@ -106,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         process.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
                 guard let self = self, self.worker === process, process.terminationStatus != 0 else { return }
-                self.startupError = "The browser runtime could not start. Check its log, then retry."
+                self.startupError = "the browser runtime could not start. check its log, then retry."
                 self.runtimeReady = false
                 self.showSetup()
                 self.refreshSetup()
@@ -117,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func request(_ path: String, post: Bool = false, completion: @escaping (Result<[String: Any], Error>) -> Void) {
         guard let token = token else {
-            completion(.failure(NSError(domain: "IgorBrowser", code: 1, userInfo: [NSLocalizedDescriptionKey: "Browser service is starting."])))
+            completion(.failure(NSError(domain: "IgorBrowser", code: 1, userInfo: [NSLocalizedDescriptionKey: "browser service is starting."])))
             return
         }
         var request = URLRequest(url: URL(string: origin + path)!)
@@ -129,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 if let error = error { completion(.failure(error)); return }
                 let object = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any] ?? [:]
                 if (response as? HTTPURLResponse)?.statusCode != 200 {
-                    completion(.failure(NSError(domain: "IgorBrowser", code: 2, userInfo: [NSLocalizedDescriptionKey: object["error"] as? String ?? "Browser unavailable."])))
+                    completion(.failure(NSError(domain: "IgorBrowser", code: 2, userInfo: [NSLocalizedDescriptionKey: object["error"] as? String ?? "browser unavailable."])))
                 } else { completion(.success(object)) }
             }
         }.resume()
@@ -147,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 self.runtimeReady = false
                 self.startService()
                 if let started = self.startupStarted, Date().timeIntervalSince(started) > 30 {
-                    self.runtimeIssues = ["The browser is still starting. Open the log if it does not become ready."]
+                    self.runtimeIssues = ["the browser is still starting. open the log if it does not become ready."]
                 }
             case .success(let status):
                 let previousMode = self.mode
@@ -158,14 +158,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 if self.runtimeReady { self.startupError = nil; self.startupStarted = nil }
                 if previousMode == "human" && self.mode != "human" { self.hideWindow() }
                 if self.mode == "pending", let request = status["request"] as? [String: Any], let id = request["id"] as? String {
-                    self.helpMessage = request["message"] as? String ?? "Your AI needs your help."
+                    self.helpMessage = request["message"] as? String ?? "your ai needs your help."
                     if !self.notificationReady || self.notificationError != nil {
                         self.lastRequest = nil
                         if self.attentionRequest != id { self.attentionRequest = id; self.showSetup() }
                     } else if self.lastRequest != id {
                         self.lastRequest = id
                         let content = UNMutableNotificationContent()
-                        content.title = "Igor Browser needs your help"
+                        content.title = "igor browser needs your help"
                         content.body = self.helpMessage
                         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
                             if let error = error {
@@ -186,23 +186,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func updateMenu() {
         let menu = NSMenu()
-        let state = (!runtimeReady && mode != "starting") ? "Browser unavailable" : (["agent": "Browser ready", "pending": "Your help is needed", "human": "You have control", "paused": "Browser paused", "starting": "Starting browser…"][mode] ?? mode)
+        let state = (!runtimeReady && mode != "starting") ? "browser unavailable" : (["agent": "browser ready", "pending": "your help is needed", "human": "you have control", "paused": "browser paused", "starting": "starting browser…"][mode] ?? mode)
         menu.addItem(withTitle: state, action: nil, keyEquivalent: "")
         if mode == "pending" { menu.addItem(withTitle: helpMessage, action: nil, keyEquivalent: "") }
-        if !setupComplete { menu.addItem(withTitle: "Finish Setup…", action: #selector(showSetup), keyEquivalent: "") }
+        if !setupComplete { menu.addItem(withTitle: "finish setup…", action: #selector(showSetup), keyEquivalent: "") }
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Show Browser", action: #selector(showBrowser), keyEquivalent: "")
-        menu.addItem(withTitle: "Settings…", action: #selector(showSetup), keyEquivalent: ",")
+        menu.addItem(withTitle: "show browser", action: #selector(showBrowser), keyEquivalent: "")
+        menu.addItem(withTitle: "settings…", action: #selector(showSetup), keyEquivalent: ",")
         if let updater = updater {
-            let update = menu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+            let update = menu.addItem(withTitle: "check for updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
             update.target = updater
         }
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Igor Browser", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: "quit igor browser", action: #selector(quit), keyEquivalent: "q")
         for entry in menu.items where entry.action != nil && entry.target == nil { entry.target = self }
         item.menu = menu
         item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (setupComplete ? "globe" : "exclamationmark.circle"), accessibilityDescription: state)
-        item.button?.toolTip = setupComplete ? state : "Igor Browser needs setup"
+        item.button?.toolTip = setupComplete ? state : "igor browser needs setup"
     }
 
     @objc func enableNotifications() {
@@ -276,17 +276,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if window != nil { return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 850),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "Igor Browser — You have control"
+        window.title = "igor browser — you have control"
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("IgorBrowserViewer")
         window.center()
         let view = NSView()
         window.contentView = view
-        let label = NSTextField(labelWithString: "Automation is paused while you use this browser.")
-        let done = NSButton(title: "Done — Return to Agent", target: self, action: #selector(finish))
+        let label = NSTextField(labelWithString: "automation is paused while you use this browser.")
+        let done = NSButton(title: "done — return to agent", target: self, action: #selector(finish))
         done.bezelStyle = .rounded
-        let hide = NSButton(title: "Hide — Keep Paused", target: self, action: #selector(hideBrowser))
+        let hide = NSButton(title: "hide — keep paused", target: self, action: #selector(hideBrowser))
         hide.bezelStyle = .rounded
         let bar = NSStackView(views: [label, hide, done])
         bar.spacing = 16
@@ -336,7 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func showError(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "Igor Browser"
+        alert.messageText = "igor browser"
         alert.informativeText = message
         alert.runModal()
     }
@@ -347,8 +347,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        webView.loadHTMLString("<p>Could not open the browser display. Check that the service is running.</p>", baseURL: nil)
-        runtimeIssues = ["Could not open the browser display: " + error.localizedDescription]
+        webView.loadHTMLString("<p>could not open the browser display. check that the service is running.</p>", baseURL: nil)
+        runtimeIssues = ["could not open the browser display: " + error.localizedDescription]
         showSetup(); renderSetup()
     }
 
