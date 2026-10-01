@@ -1,0 +1,13 @@
+cask "igor-browser" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+  url "@DOWNLOAD_URL@"
+  name "Igor Browser"
+  desc "Background browser with native human takeover and MCP"
+  homepage "https://github.com/DaniGuardiola/igor-browser"
+  depends_on macos: ">= :ventura"
+  depends_on arch: :arm64
+  depends_on formula: "colima"
+  depends_on formula: "docker"
+  app "Igor Browser.app"
+end

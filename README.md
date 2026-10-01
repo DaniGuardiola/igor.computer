@@ -17,8 +17,8 @@ closing the window leaves automation paused.
 When an agent needs help, it supplies a short instruction and pauses. The globe
 changes to a help indicator. With notifications enabled, clicking the notification
 opens the same browser. No browser relaunch, profile transfer, or page reload.
-Choose **Enable Help Notifications…** once to grant macOS notification permission.
-The installer registers start at login; the menu lets you disable or re-enable it. macOS may require approval in Login Items. Quitting the app stops its service and dedicated VM, retaining the profile.
+The setup window guides notification permission and start at login.
+Settings lets you change those choices later. macOS may require approval in Login Items. Quitting the app stops its service and dedicated VM, retaining the profile.
 
 ## Development setup
 
@@ -36,21 +36,21 @@ npm run build:mac
 bash scripts/install-mac.sh
 ```
 
-The prototype app expects this checkout and its installed Node.js binary to stay
-in place. It is not yet a self-contained, notarized download. Installing into
+The built app bundles a pinned Node 24 runtime and its service dependencies.
+It runs without this checkout; public downloads still need release signing and notarization. Installing into
 `~/Applications` makes launch-at-login registration possible without modifying
 system Applications.
 
 ## Connect any MCP client
 
-Run the native app first, then configure a stdio server:
+Run the native app first, then configure a stdio server (use your actual app install path):
 
 ```json
 {
   "mcpServers": {
     "igor-browser": {
-      "command": "/absolute/path/to/node",
-      "args": ["/absolute/path/to/igor-browser/src/mcp.mjs"]
+      "command": "/Applications/Igor Browser.app/Contents/Resources/runtime/bin/node",
+      "args": ["/Applications/Igor Browser.app/Contents/Resources/runtime/src/mcp.mjs"]
     }
   }
 }
@@ -63,16 +63,16 @@ leaves the service and browser running.
 Human handoff uses `browser_request_human({message, pageId})`, then
 `browser_wait_human({requestId, timeoutSeconds})`. A `continued` result permits
 resuming after a fresh snapshot. `waiting` means wait again; `cancelled` means
-stop. `browser_status` reports ownership. The service rejects all upstream tools
+stop. `setup-required` means finish setup in the macOS app; automation stays paused.
+`browser_status` reports ownership, setup state, and browser/display health. The service rejects all upstream tools
 while human help is pending or the user has control. One in-flight browser tool
 must finish before the user can open the viewer.
 
 ## Igor extension
 
-This package includes `igor.extension.json` and a browser skill. Install this
-checkout as a direct dependency of the Igor workspace and enable **Igor Browser**.
-Use Lightpanda first and Igor Browser for incompatible sites. Disable Dedicated
-Chrome and My browser after testing the replacement on your real tasks.
+The extension manifest and browser skill are included for a later integration.
+Keep the existing Igor browser options enabled while the standalone app is
+being polished.
 
 This first version has one shared profile and one ownership gate for all clients.
 It does not isolate accounts between Igor agents. Tabs and profile data belong
@@ -134,3 +134,13 @@ container, VM, and macOS service separately rather than calling it total RAM use
 
 DevTools MCP usage telemetry and CrUX requests are disabled. No custom Chromium
 fork, modified app bundle, private macOS display API, or personal Chrome profile.
+
+## Setup and distribution
+
+The app checks notifications, alert delivery, login registration, and browser/display health at startup and while running. Incomplete setup opens once on launch; dismissing it leaves a **Finish Setup** menu item and warning icon. When everything is ready, setup closes and that menu item disappears. **Settings** remains available for deliberate changes. An AI request made while alerts are unavailable opens the setup window once for that request; automation stays paused and MCP reports `setup-required`.
+
+Opening notifications or login approval in System Settings shows a floating guide attached to its window. It reuses extend.computer's MIT-licensed PermissionFlow window tracker without requesting Accessibility access. Granting the setting closes the helper automatically. Runtime failures have an explicit retry and log, rather than an endless silent restart loop.
+
+The app now bundles Node and its service dependencies; it runs independently of the source checkout. `npm run package:dmg` creates a local development disk image. Sparkle is embedded for signed app updates, but development builds have no published update feed. Homebrew cask template and release requirements are in [distribution/README.md](distribution/README.md). Public distribution, notarization, and an actual update installation remain release work.
+
+Igor integration is deferred while this standalone app is polished. Existing Igor browser fallbacks remain in use.

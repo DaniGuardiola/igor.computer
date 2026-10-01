@@ -8,6 +8,7 @@ import httpProxy from 'http-proxy';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Control } from './control.mjs';
+import { nativeReadiness, helpDelivery } from './readiness.mjs';
 
 process.umask(0o077);
 const base = dirname(fileURLToPath(import.meta.url));
@@ -46,7 +47,33 @@ function changeControl(action) {
   transitions = next.catch(() => {});
   return next;
 }
-const upstream = new Client({ name: 'igor-browser-service', version: '0.1.0' });
+let healthCache;
+async function browserHealth() {
+  if (healthCache && Date.now() - healthCache.checkedAt < 2000) return healthCache;
+  const probes = await Promise.allSettled([
+    fetch('http://127.0.0.1:18422/json/version', { signal: AbortSignal.timeout(1500) }).then(async r => {
+      if (!r.ok || !(await r.json()).webSocketDebuggerUrl) throw new Error('Browser control unavailable.');
+    }),
+    fetch('http://127.0.0.1:18423/vnc.html', { signal: AbortSignal.timeout(1500) }).then(async r => {
+      if (!r.ok) throw new Error('Browser display unavailable.');
+      await r.body?.cancel();
+    }),
+  ]);
+  const issues = probes.flatMap((r, i) => r.status === 'rejected' ? [i === 0 ? 'Browser control is unavailable. Open Igor Browser setup and retry.' : 'Browser display is unavailable. Open Igor Browser setup and retry.'] : []);
+  return healthCache = { ready: issues.length === 0, issues, checkedAt: Date.now() };
+}
+async function getStatus() {
+  let native;
+  try { native = JSON.parse(await readFile(join(stateDir, 'app-status.json'), 'utf8')); } catch {}
+  const setup = nativeReadiness(native);
+  const runtime = await browserHealth();
+  return { ...control.status(), setup, runtime, ...(control.mode === 'pending' ? { delivery: helpDelivery(setup) } : {}) };
+}
+async function requireBrowser() {
+  const health = await browserHealth();
+  if (!health.ready) throw new Error(health.issues.join(' '));
+}
+const upstream = new Client({ name: 'igor-browser-service', version: '0.1.1' });
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [join(base, '../node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'),
@@ -109,24 +136,26 @@ const server = http.createServer(async (req, res) => {
       req.url = req.url.slice(4);
       return proxy.web(req, res);
     }
-    if (path === '/status' && req.method === 'GET') return json(res, control.status());
+    if (path === '/status' && req.method === 'GET') return json(res, await getStatus());
     if (path === '/tools' && req.method === 'GET') return json(res, { tools });
     if (req.method !== 'POST') return json(res, { error: 'Not found.' }, 404);
     const args = await body(req);
     if (path === '/request-human') {
+      await requireBrowser();
       if (typeof args.message !== 'string' || !args.message.trim() || args.message.length > 300) throw new Error('Provide a short message naming the site and required human step.');
       if (args.pageId !== undefined) {
         if (!Number.isInteger(args.pageId)) throw new Error('Invalid page ID.');
         await control.run(() => upstream.callTool({ name: 'select_page', arguments: { pageId: args.pageId, bringToFront: true } }));
       }
       const status = await changeControl(() => control.requestHuman(args.message.trim(), args.pageId));
-      return json(res, status);
+      return json(res, { ...status, ...await getStatus() });
     }
-    if (path === '/take-control') { const status = await changeControl(() => control.takeControl()); return json(res, status); }
+    if (path === '/take-control') { await requireBrowser(); const status = await changeControl(() => control.takeControl()); return json(res, status); }
     if (path === '/resume') { disconnectViewer(); const status = await changeControl(() => control.resume()); return json(res, status); }
     if (path === '/cancel') { disconnectViewer(); const status = await changeControl(() => control.cancel()); return json(res, status); }
     if (path === '/shutdown') { json(res, { ok: true }); setImmediate(close); return; }
     if (path === '/call') {
+      await requireBrowser();
       if (!tools.some(tool => tool.name === args.name)) throw new Error('Unknown browser tool.');
       return json(res, await control.run(() => upstream.callTool(args, undefined, { timeout: 120000 })));
     }

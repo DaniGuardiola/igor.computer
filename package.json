@@ -1,6 +1,6 @@
 {
   "name": "igor-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "A persistent headed browser in a private VM, with native macOS human takeover and MCP.",
@@ -9,8 +9,9 @@
     "mcp": "node src/mcp.mjs",
     "test": "node --test tests/*.test.mjs",
     "build:mac": "bash scripts/build-mac.sh",
-    "vm:build": "docker --context colima-igor-browser build -t igor-browser:local container",
-    "vm:start": "bash scripts/start-browser.sh"
+    "vm:build": "docker --context colima-igor-browser build -t igor-browser:0.1.1 container",
+    "vm:start": "bash scripts/start-browser.sh",
+    "package:dmg": "bash scripts/package-dmg.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",

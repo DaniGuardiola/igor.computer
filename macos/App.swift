@@ -2,6 +2,7 @@ import AppKit
 import WebKit
 import UserNotifications
 import ServiceManagement
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, UNUserNotificationCenterDelegate {
     var item: NSStatusItem!
@@ -13,6 +14,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var mode = "starting"
     var helpMessage = ""
     var opening = false
+    var settingsGuide: SettingsGuide?
+    var setupWindow: NSWindow?
+    var setupLabels: [String: NSTextField] = [:]
+    var setupButtons: [String: NSButton] = [:]
+    var setupSummary: NSTextField?
+    var wasSetupComplete = false
+    var setupKeepOpen = false
+    var notificationReady = false
+    var notificationDetermined = false
+    var permissionsChecked = false
+    var permissionCheckRunning = false
+    var notificationError: String?
+    var runtimeReady = false
+    var runtimeIssues: [String] = []
+    var startupError: String?
+    var loginError: String?
+    var startupStarted: Date?
+    var startupInspected = false
+    var attentionRequest: String?
+    var pollRunning = false
+    var updater: SPUStandardUpdaterController?
+    var loginReady: Bool {
+        SMAppService.mainApp.status == .enabled || UserDefaults.standard.bool(forKey: "startAtLoginDisabledByUser")
+    }
+    var setupComplete: Bool {
+        permissionsChecked && notificationReady && notificationError == nil && loginReady && runtimeReady && installedCorrectly && startupError == nil
+    }
+    var installedCorrectly: Bool {
+        let path = Bundle.main.bundlePath
+        return (path.hasPrefix("/Applications/") || path.hasPrefix(FileManager.default.homeDirectoryForCurrentUser.path + "/Applications/")) && FileManager.default.isWritableFile(atPath: path)
+    }
     let origin = "http://127.0.0.1:18420"
     var token: String? {
         let url = FileManager.default.homeDirectoryForCurrentUser
@@ -26,19 +58,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "Igor Browser")
         UNUserNotificationCenter.current().delegate = self
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
+        if Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") is String,
+           Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") is String {
+            updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        }
+        refreshSetup()
         updateMenu()
         if CommandLine.arguments.contains("--enable-login") && SMAppService.mainApp.status == .notRegistered {
             do { try SMAppService.mainApp.register() } catch { NSLog("Login registration failed: %@", error.localizedDescription) }
         }
         poll()
+        if CommandLine.arguments.contains("--setup") { showSetup() }
         if CommandLine.arguments.contains("--show") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { self.showBrowser() }
         }
     }
 
     func startService() {
-        guard worker?.isRunning != true,
+        guard worker?.isRunning != true, startupError == nil, installedCorrectly,
               let script = Bundle.main.url(forResource: "run-service", withExtension: "sh") else { return }
+        guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/colima"),
+              FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") else {
+            startupError = "The browser runtime is missing. Install Colima and Docker to continue."
+            refreshSetup(); return
+        }
+        startupStarted = startupStarted ?? Date()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path]
@@ -52,7 +96,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             process.standardOutput = handle
             process.standardError = handle
         }
-        do { try process.run(); worker = process } catch { helpMessage = error.localizedDescription }
+        process.terminationHandler = { [weak self] process in
+            DispatchQueue.main.async {
+                guard let self = self, self.worker === process, process.terminationStatus != 0 else { return }
+                self.startupError = "The browser runtime could not start. Check its log, then retry."
+                self.runtimeReady = false
+                self.showSetup()
+                self.refreshSetup()
+            }
+        }
+        do { try process.run(); worker = process } catch { startupError = error.localizedDescription; refreshSetup() }
     }
 
     func request(_ path: String, post: Bool = false, completion: @escaping (Result<[String: Any], Error>) -> Void) {
@@ -76,58 +129,96 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func poll() {
+        refreshSetup()
+        guard !pollRunning else { return }
+        pollRunning = true
         request("/status") { result in
+            self.pollRunning = false
             switch result {
             case .failure:
                 self.mode = "starting"
+                self.runtimeReady = false
                 self.startService()
+                if let started = self.startupStarted, Date().timeIntervalSince(started) > 30 {
+                    self.runtimeIssues = ["The browser is still starting. Open the log if it does not become ready."]
+                }
             case .success(let status):
                 let previousMode = self.mode
                 self.mode = status["mode"] as? String ?? "agent"
+                let runtime = status["runtime"] as? [String: Any] ?? [:]
+                self.runtimeReady = runtime["ready"] as? Bool ?? false
+                self.runtimeIssues = runtime["issues"] as? [String] ?? []
+                if self.runtimeReady { self.startupError = nil; self.startupStarted = nil }
                 if previousMode == "human" && self.mode != "human" { self.hideWindow() }
-                if self.mode == "pending", let request = status["request"] as? [String: Any],
-                   let id = request["id"] as? String, self.lastRequest != id {
-                    self.lastRequest = id
+                if self.mode == "pending", let request = status["request"] as? [String: Any], let id = request["id"] as? String {
                     self.helpMessage = request["message"] as? String ?? "Your AI needs your help."
-                    let content = UNMutableNotificationContent()
-                    content.title = "Igor Browser needs your help"
-                    content.body = self.helpMessage
-                    content.sound = nil
-                    UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+                    if !self.notificationReady || self.notificationError != nil {
+                        self.lastRequest = nil
+                        if self.attentionRequest != id { self.attentionRequest = id; self.showSetup() }
+                    } else if self.lastRequest != id {
+                        self.lastRequest = id
+                        let content = UNMutableNotificationContent()
+                        content.title = "Igor Browser needs your help"
+                        content.body = self.helpMessage
+                        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
+                            if let error = error {
+                                DispatchQueue.main.async {
+                                    self.lastRequest = nil
+                                    self.notificationError = error.localizedDescription
+                                    self.showSetup(); self.refreshSetup()
+                                }
+                            }
+                        }
+                    }
                 }
             }
+            self.renderSetup()
             self.updateMenu()
         }
     }
 
     func updateMenu() {
         let menu = NSMenu()
-        let state = ["agent": "Browser ready", "pending": "Your help is needed", "human": "You have control", "paused": "Browser paused", "starting": "Starting browser…"][mode] ?? mode
+        let state = (!runtimeReady && mode != "starting") ? "Browser unavailable" : (["agent": "Browser ready", "pending": "Your help is needed", "human": "You have control", "paused": "Browser paused", "starting": "Starting browser…"][mode] ?? mode)
         menu.addItem(withTitle: state, action: nil, keyEquivalent: "")
         if mode == "pending" { menu.addItem(withTitle: helpMessage, action: nil, keyEquivalent: "") }
+        if !setupComplete { menu.addItem(withTitle: "Finish Setup…", action: #selector(showSetup), keyEquivalent: "") }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Show Browser", action: #selector(showBrowser), keyEquivalent: "")
-        menu.addItem(withTitle: "Enable Help Notifications…", action: #selector(enableNotifications), keyEquivalent: "")
-        let loginEnabled = SMAppService.mainApp.status == .enabled
-        menu.addItem(withTitle: loginEnabled ? "Disable Start at Login" : "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
+        menu.addItem(withTitle: "Settings…", action: #selector(showSetup), keyEquivalent: ",")
+        if let updater = updater {
+            let update = menu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+            update.target = updater
+        }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Igor Browser", action: #selector(quit), keyEquivalent: "q")
-        for entry in menu.items where entry.action != nil { entry.target = self }
+        for entry in menu.items where entry.action != nil && entry.target == nil { entry.target = self }
         item.menu = menu
-        item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : "globe", accessibilityDescription: state)
-        item.button?.toolTip = state
+        item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (setupComplete ? "globe" : "exclamationmark.circle"), accessibilityDescription: state)
+        item.button?.toolTip = setupComplete ? state : "Igor Browser needs setup"
     }
 
     @objc func enableNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        notificationError = nil
+        if notificationDetermined {
+            openSettingsGuide("notifications")
+        } else {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, error in
+                DispatchQueue.main.async { self.notificationError = error?.localizedDescription; self.refreshSetup() }
+            }
+        }
     }
 
     @objc func toggleLogin() {
+        loginError = nil
         do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
-        } catch { showError(error.localizedDescription) }
-        updateMenu()
+            switch SMAppService.mainApp.status {
+            case .enabled: try SMAppService.mainApp.unregister(); UserDefaults.standard.set(true, forKey: "startAtLoginDisabledByUser")
+            case .requiresApproval: openSettingsGuide("login")
+            default: try SMAppService.mainApp.register(); UserDefaults.standard.set(false, forKey: "startAtLoginDisabledByUser"); if SMAppService.mainApp.status == .requiresApproval { openSettingsGuide("login") }
+            }
+        } catch { loginError = error.localizedDescription }
+        refreshSetup()
     }
 
     @objc func showBrowser() {
@@ -136,7 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         request("/take-control", post: true) { result in
             self.opening = false
             switch result {
-            case .failure(let error): self.showError(error.localizedDescription)
+            case .failure(let error): self.runtimeIssues = [error.localizedDescription]; self.showSetup(); self.renderSetup()
             case .success:
                 self.mode = "human"
                 self.makeWindow()
@@ -231,7 +322,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window?.orderOut(nil)
     }
 
-    func windowShouldClose(_ sender: NSWindow) -> Bool { hideBrowser(); return false }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if sender === setupWindow { sender.orderOut(nil); return false }
+        hideBrowser(); return false
+    }
 
     func showError(_ message: String) {
         let alert = NSAlert()
@@ -247,15 +341,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         webView.loadHTMLString("<p>Could not open the browser display. Check that the service is running.</p>", baseURL: nil)
-        NSLog("Viewer navigation failed: %@", error.localizedDescription)
+        runtimeIssues = ["Could not open the browser display: " + error.localizedDescription]
+        showSetup(); renderSetup()
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        DispatchQueue.main.async { self.showBrowser(); completionHandler() }
+        DispatchQueue.main.async {
+            self.request("/status") { result in
+                if case .success(let status) = result, status["mode"] as? String == "pending",
+                   let request = status["request"] as? [String: Any], request["id"] as? String == response.notification.request.identifier {
+                    self.showBrowser()
+                }
+                completionHandler()
+            }
+        }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list])
     }
 
     @objc func quit() {
-        request("/cancel", post: true) { _ in
+        let beforeShutdown = mode == "agent" ? "/status" : "/cancel"
+        request(beforeShutdown, post: mode != "agent") { _ in
             self.request("/shutdown", post: true) { _ in
                 self.worker?.terminate()
                 let stop = Process()
@@ -270,7 +378,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 }
 
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
+@main
+struct BrowserApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}
