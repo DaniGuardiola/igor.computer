@@ -62,8 +62,14 @@ extension AppDelegate {
     }
 
     func makeSetupWindow() {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440), styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "igor browser"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            window.standardWindowButton(button)?.isHidden = true
+        }
         window.hidesOnDeactivate = false
         window.delegate = self
         window.isReleasedWhenClosed = false
