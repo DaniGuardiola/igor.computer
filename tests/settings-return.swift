@@ -66,14 +66,17 @@ import AppKit
    for step: NotificationGuideStep in [.allow, .desktop, .notificationCenter, .persistent] {
     let control = GuideEstimate.notification(step, in: window)!
     let placement = GuidePlacement.besideWindow(window, pointingAt: control, size: size, visible: wideScreen)!
-    assert(!placement.frame.intersects(window))
+    assert(abs(placement.frame.intersection(window).width - 8) < 1)
+    let body = CGRect(x: placement.frame.minX + (placement.side == .left ? 12 : 0), y: placement.frame.minY, width: placement.frame.width - 12, height: placement.frame.height)
+    assert(!body.intersects(window))
+    assert(!placement.frame.intersects(control))
     assert(wideScreen.contains(placement.frame))
     assert(abs(placement.frame.minY + placement.pointerY - control.midY) < 1)
     if let x = expectedX { assert(placement.frame.minX == x) }
     expectedX = placement.frame.minX
    }
   }
-  print("PASS: every guide step shares horizontal position and leaves all Settings controls clear, on either side.")
+  print("PASS: every step shares horizontal position, with 8pt arrow overlap and unobstructed controls on either side.")
   assert(abs(GuideEstimate.notification(.desktop, in: defaultWindow)!.minX - (defaultWindow.minX + 305)) < 1)
   assert(GuideEstimate.notification(.ready, in: defaultWindow) == nil)
   assert(GuideEstimate.notification(.allow, in: CGRect(x: 0, y: 0, width: 400, height: 400)) == nil)
