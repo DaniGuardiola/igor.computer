@@ -13,7 +13,7 @@ import AppKit
   assert(spaceSwitch.observe(hasWindow: true, settingsIsForeground: true) == nil)
   assert(spaceSwitch.observe(hasWindow: true, settingsIsForeground: false) == nil)
   let screen = CGRect(x: 0, y: 0, width: 1000, height: 800)
-  let size = CGSize(width: 330, height: 156)
+  let size = CGSize(width: 330, height: 132)
   let toggle = CGRect(x: 500, y: 400, width: 44, height: 20)
   let right = GuidePlacement.nextTo(toggle, size: size, visible: screen)!
   assert(right.side == .left)

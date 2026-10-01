@@ -5,7 +5,7 @@ enum GuidePointerSide { case none, left, right }
 
 final class GuideAppearance: ObservableObject {
     @Published var side: GuidePointerSide = .none
-    @Published var pointerY: CGFloat = 78
+    @Published var pointerY: CGFloat = 66
     @Published var targeted = false
 }
 
@@ -79,14 +79,11 @@ struct GuideView: View {
                 .foregroundStyle(.secondary)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("closes automatically when you're ready")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
         }
         .padding(16)
         .padding(.leading, appearance.side == .left ? 12 : 0)
         .padding(.trailing, appearance.side == .right ? 12 : 0)
-        .frame(width: 330, height: 156, alignment: .topLeading)
+        .frame(width: 330, height: 132, alignment: .topLeading)
         .background(.ultraThinMaterial, in: shape)
         .overlay(shape.stroke(.primary.opacity(0.14), lineWidth: 1))
     }

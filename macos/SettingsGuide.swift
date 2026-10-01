@@ -22,7 +22,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         self.kind = kind
         self.isComplete = isComplete
         self.onComplete = onComplete
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 330, height: 156), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 330, height: 132), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
         panel.title = "igor browser"
         panel.level = .floating
