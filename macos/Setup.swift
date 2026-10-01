@@ -206,11 +206,11 @@ extension AppDelegate {
             setupLabels["login"]?.stringValue = "approve igor browser in login items in system settings."
             setupButtons["login"]?.title = "open settings"
         default:
-            setupLabels["login"]?.stringValue = loginReady ? "automatic startup is off by choice. open the app when needed." : "enable automatic startup to keep the browser available."
+            setupLabels["login"]?.stringValue = "off · open the app manually after login"
             setupButtons["login"]?.title = "enable"
         }
         if let error = loginError { setupLabels["login"]?.stringValue = "could not change startup: " + error }
-        let checks = ["install": installedCorrectly, "runtime": runtimeReady && runtimeIssues.isEmpty && startupError == nil, "notifications": notificationReady && notificationError == nil, "login": loginReady && loginError == nil]
+        let checks = ["install": installedCorrectly, "runtime": runtimeReady && runtimeIssues.isEmpty && startupError == nil, "notifications": notificationReady && notificationError == nil, "login": SMAppService.mainApp.status == .enabled && loginError == nil]
         for (key, ready) in checks {
             setupIcons[key]?.image = NSImage(systemSymbolName: ready ? "checkmark.circle.fill" : "exclamationmark.circle", accessibilityDescription: ready ? "ready" : "needs attention")
             setupIcons[key]?.contentTintColor = ready ? .systemGreen : .systemOrange
