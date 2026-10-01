@@ -22,7 +22,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         panel.delegate = self
         let title = NSTextField(labelWithString: kind == "login" ? "allow igor browser at login" : "allow requests for human help")
         title.font = .systemFont(ofSize: 15, weight: .semibold)
-        let detail = NSTextField(wrappingLabelWithString: kind == "login" ? "find igor browser under open at login or allow in the background, then turn it on. this helper closes when startup is enabled." : "choose igor browser, turn on allow notifications, and choose banners or alerts. this helper closes when alerts are enabled.")
+        let detail = NSTextField(wrappingLabelWithString: kind == "login" ? "find igor browser under open at login or allow in the background, then turn it on. this helper closes when startup is enabled." : "turn on allow notifications, then choose banners or alerts. this helper closes when alerts are enabled.")
         detail.textColor = .secondaryLabelColor
         let stack = NSStackView(views: [title, detail]); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -71,7 +71,15 @@ extension AppDelegate {
             window.makeKeyAndOrderFront(nil)
         }
         if kind == "login" { SMAppService.openSystemSettingsLoginItems() }
-        else { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!) }
+        else {
+            var destination = URLComponents(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
+            if let identifier = Bundle.main.bundleIdentifier {
+                destination.queryItems = [URLQueryItem(name: "id", value: identifier)]
+            }
+            NSWorkspace.shared.open(destination.url!)
+        }
+        let needsGuide = kind == "login" ? SMAppService.mainApp.status != .enabled : !notificationReady
+        guard needsGuide else { settingsGuide = nil; return }
         settingsGuide = SettingsGuide(kind: kind, isComplete: { [weak self] in
             kind == "login" ? SMAppService.mainApp.status == .enabled : self?.notificationReady == true
         }, onComplete: { [weak self] in
