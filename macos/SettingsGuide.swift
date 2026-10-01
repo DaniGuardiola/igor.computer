@@ -9,7 +9,6 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
     let isComplete: () -> Bool
     let notificationStep: () -> NotificationGuideStep
     let onComplete: () -> Void
-    var deadline = Date().addingTimeInterval(300)
     let appearance = GuideAppearance()
     let kind: String
     var target: CGRect?
@@ -36,7 +35,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.delegate = self
-        panel.contentView = NSHostingView(rootView: GuideView(kind: kind, appearance: appearance, dismiss: { [weak self] in self?.close() }))
+        panel.contentView = NSHostingView(rootView: GuideView(kind: kind, appearance: appearance))
         panel.center()
         tracker.onFrameChange = { [weak self] frame in self?.attach(to: frame) }
         tracker.onTrackingEnded = { [weak self] in self?.close() }
@@ -95,7 +94,6 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
             lastTargetCheck = .distantPast
         }
         if isComplete() { close(); onComplete(); return }
-        if Date() > deadline { close(); return }
         if let frame = tracker.currentFrame { attach(to: frame) }
         guard !targetCheckRunning, Date().timeIntervalSince(lastTargetCheck) > 1 else { return }
         lastTargetCheck = Date(); targetCheckRunning = true
@@ -121,12 +119,11 @@ extension AppDelegate {
         settingsGuide?.close()
         setupKeepOpen = true
         settingsReturn?.stop()
+        let initiatedSettings = SettingsReturnObserver.windowCount() == 0
         settingsReturn = SettingsReturnObserver { [weak self] in
-            guard let self = self, let window = self.setupWindow, !window.isMiniaturized else { return }
-            self.settingsGuide?.close()
-            NSApp.unhide(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
+            self?.settingsGuide?.close()
+            self?.settingsGuide = nil
+            self?.returnToBrowserSettings()
         }
         if kind == "login" { SMAppService.openSystemSettingsLoginItems() }
         else {
@@ -143,7 +140,22 @@ extension AppDelegate {
         }, onComplete: { [weak self] in
             self?.settingsGuide = nil
             self?.refreshSetup()
-            // Keep the settings window in place while the guide finishes.
+            self?.settingsReturn?.stop()
+            let foreground = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.systempreferences"
+            if SettingsCompletionPolicy.shouldClose(initiated: initiatedSettings, windowCount: SettingsReturnObserver.windowCount(), foreground: foreground) {
+                NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first?.terminate()
+            }
+            if foreground || NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier {
+                self?.returnToBrowserSettings()
+            }
         })
     }
+
+    @MainActor func returnToBrowserSettings() {
+        guard let window = setupWindow, !window.isMiniaturized else { return }
+        NSApp.unhide(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
 }

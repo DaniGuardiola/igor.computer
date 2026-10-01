@@ -30,10 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var wasSetupComplete = false
     var setupKeepOpen = false
     var notificationAllowed = false
+    var notificationCenterEnabled = false
     var notificationDesktop = false
     var notificationStyle = "unknown"
     var notificationGuideStep: NotificationGuideStep {
-        .current(allowed: notificationAllowed, desktop: notificationDesktop, style: notificationStyle)
+        .current(allowed: notificationAllowed, desktop: notificationDesktop, notificationCenter: notificationCenterEnabled, style: notificationStyle)
     }
     var notificationReady = false
     var notificationDetermined = false
@@ -217,8 +218,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if notificationDetermined {
             openSettingsGuide("notifications")
         } else {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, error in
-                DispatchQueue.main.async { self.notificationError = error?.localizedDescription; self.refreshSetup() }
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, error in
+                DispatchQueue.main.async {
+                    self.notificationError = error?.localizedDescription
+                    if granted { self.setupKeepOpen = true }
+                    self.refreshSetup()
+                    if granted { self.openSettingsGuide("notifications") }
+                }
             }
         }
     }

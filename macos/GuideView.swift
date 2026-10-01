@@ -49,7 +49,6 @@ struct GuideBubble: Shape {
 struct GuideView: View {
     let kind: String
     @ObservedObject var appearance: GuideAppearance
-    let dismiss: () -> Void
 
     var body: some View {
         let shape = GuideBubble(side: appearance.side, pointerY: appearance.pointerY)
@@ -66,14 +65,6 @@ struct GuideView: View {
                     Text("igor browser").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
-                Button(action: dismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 17))
-                        .foregroundStyle(.secondary.opacity(0.65))
-                }
-                .buttonStyle(.plain)
-                .help("dismiss guide")
-                .accessibilityLabel("dismiss guide")
             }
             Text(instruction)
                 .font(.system(size: 13))
@@ -131,10 +122,11 @@ enum GuideEstimate {
         case .allow:
             top = 73; size = CGSize(width: 44, height: 20)
             x = window.maxX - 30 - size.width
-        case .desktop:
-            top = 146; size = CGSize(width: 88, height: 105)
+        case .desktop, .notificationCenter:
+            top = 146; size = CGSize(width: step == .desktop ? 88 : 107, height: 105)
             let contentWidth = window.width - 230
-            x = window.minX + 230 + contentWidth * (119 / 510) - size.width / 2
+            let fraction: CGFloat = step == .desktop ? 119 / 510 : 256 / 510
+            x = window.minX + 230 + contentWidth * fraction - size.width / 2
         case .persistent:
             top = 282; size = CGSize(width: 82, height: 16)
             x = window.maxX - 30 - size.width

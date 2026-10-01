@@ -16,6 +16,16 @@ import AppKit
   assert(NotificationGuideStep.current(allowed: true, desktop: false, style: "temporary") == .desktop)
   assert(NotificationGuideStep.current(allowed: true, desktop: true, style: "temporary") == .persistent)
   assert(NotificationGuideStep.current(allowed: true, desktop: true, style: "persistent") == .ready)
+  assert(NotificationGuideStep.current(allowed: true, desktop: true, notificationCenter: false, style: "persistent") == .notificationCenter)
+  assert(NotificationGuideStep.current(allowed: true, desktop: false, notificationCenter: true, style: "persistent") == .desktop)
+  assert(NotificationGuideStep.current(allowed: false, desktop: true, notificationCenter: true, style: "persistent") == .allow)
+  assert(NotificationGuideStep.current(allowed: true, desktop: true, notificationCenter: true, style: "temporary") == .persistent)
+  assert(SettingsCompletionPolicy.shouldClose(initiated: true, windowCount: 1, foreground: true))
+  assert(!SettingsCompletionPolicy.shouldClose(initiated: false, windowCount: 1, foreground: true))
+  assert(!SettingsCompletionPolicy.shouldClose(initiated: true, windowCount: 2, foreground: true))
+  assert(!SettingsCompletionPolicy.shouldClose(initiated: true, windowCount: nil, foreground: true))
+  assert(!SettingsCompletionPolicy.shouldClose(initiated: true, windowCount: 1, foreground: false))
+  print("PASS: revocations return to missing steps; completion preserves pre-existing Settings.")
   print("PASS: notification guidance advances through permission, desktop, and optional persistent style.")
   let screen = CGRect(x: 0, y: 0, width: 1000, height: 800)
   let size = CGSize(width: 330, height: 132)
@@ -36,7 +46,7 @@ import AppKit
   assert(!fallback.frame.intersects(settingsWindow))
   assert(abs(fallback.frame.minY + fallback.pointerY - settingsWindow.midY) < 1)
   let defaultWindow = CGRect(x: 100, y: 100, width: 740, height: 625)
-  for step: NotificationGuideStep in [.allow, .desktop, .persistent] {
+  for step: NotificationGuideStep in [.allow, .desktop, .notificationCenter, .persistent] {
    let estimate = GuideEstimate.notification(step, in: defaultWindow)!
    assert(defaultWindow.contains(estimate))
    let moved = GuideEstimate.notification(step, in: defaultWindow.offsetBy(dx: 120, dy: -40))!

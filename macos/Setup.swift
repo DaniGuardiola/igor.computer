@@ -13,14 +13,15 @@ extension AppDelegate {
                 self.permissionsChecked = true
                 self.notificationDetermined = settings.authorizationStatus != .notDetermined
                 self.notificationAllowed = settings.authorizationStatus == .authorized
-                self.notificationDesktop = settings.alertSetting == .enabled && settings.alertStyle != .none
+                self.notificationDesktop = settings.alertSetting == .enabled
+                self.notificationCenterEnabled = settings.notificationCenterSetting == .enabled
                 switch settings.alertStyle {
                 case .banner: self.notificationStyle = "temporary"
                 case .alert: self.notificationStyle = "persistent"
                 case .none: self.notificationStyle = "off"
                 @unknown default: self.notificationStyle = "unknown"
                 }
-                self.notificationReady = self.notificationAllowed && self.notificationDesktop
+                self.notificationReady = self.notificationAllowed
                 self.writeAppStatus()
                 self.settingsGuide?.refresh()
                 if !self.startupInspected {
@@ -40,9 +41,9 @@ extension AppDelegate {
             let data = try JSONSerialization.data(withJSONObject: [
                 "checkedAt": Date().timeIntervalSince1970 * 1000,
                 "notifications": notificationReady && notificationError == nil,
-                "notificationSettings": ["allowed": notificationAllowed, "desktop": notificationDesktop, "style": notificationStyle],
+                "notificationSettings": ["allowed": notificationAllowed, "desktop": notificationDesktop, "notificationCenter": notificationCenterEnabled, "style": notificationStyle],
                 "login": loginReady,
-                "guide": ["accessibilityTrusted": AXIsProcessTrusted(), "targetFound": settingsGuide?.target != nil, "targeted": settingsGuide?.appearance.targeted == true, "estimated": settingsGuide?.estimated == true, "pointer": String(describing: settingsGuide?.appearance.side ?? .none)]
+                "guide": ["accessibilityTrusted": AXIsProcessTrusted(), "targetFound": settingsGuide?.target != nil, "targeted": settingsGuide?.appearance.targeted == true, "estimated": settingsGuide?.estimated == true, "pointer": String(describing: settingsGuide?.appearance.side ?? .none), "step": String(describing: notificationGuideStep)]
             ])
             let url = directory.appendingPathComponent("app-status.json")
             try data.write(to: url, options: .atomic)
@@ -189,7 +190,7 @@ extension AppDelegate {
         setupButtons["runtime"]?.title = hasRuntime ? "retry" : "install runtime"
         setupButtons["runtime"]?.isHidden = runtimeReady && runtimeIssues.isEmpty && startupError == nil
         setupButtons["runtime"]?.isEnabled = worker?.isRunning != true || mode != "starting"
-        setupLabels["notifications"]?.stringValue = notificationError ?? (notificationReady ? "allowed. requests appear without opening a window." : (notificationDetermined ? "allow notifications and enable alerts in system settings." : "allow alerts so your ai can ask for your help."))
+        setupLabels["notifications"]?.stringValue = notificationError ?? (notificationReady ? "allowed. requests appear without opening a window." : (notificationDetermined ? "allow notifications in system settings." : "allow alerts so your ai can ask for your help."))
         setupButtons["notifications"]?.title = notificationReady || notificationDetermined ? "open settings" : "allow"
         switch SMAppService.mainApp.status {
         case .enabled:
@@ -216,7 +217,7 @@ extension AppDelegate {
         setupButtons["notifications"]?.title = notificationDetermined ? "settings…" : "allow"
         if runtimeReady && runtimeIssues.isEmpty && startupError == nil { setupLabels["runtime"]?.stringValue = "ready in the background" }
         if notificationError == nil {
-            setupLabels["notifications"]?.stringValue = notificationReady ? "desktop · " + notificationStyle : notificationGuideStep.instruction
+            setupLabels["notifications"]?.stringValue = notificationReady ? (notificationGuideStep == .ready ? "allowed · recommendations enabled" : "allowed · optional settings available") : notificationGuideStep.instruction
         }
         if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "available whenever you log in" }
         setupDescription?.stringValue = "a browser for your agent."
