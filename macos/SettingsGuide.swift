@@ -162,7 +162,7 @@ extension AppDelegate {
         settingsReturn = SettingsReturnObserver { [weak self] in
             self?.settingsGuide?.close()
             self?.settingsGuide = nil
-            self?.returnToBrowserSettings()
+            // Regular app mode lets macOS restore activation on a manual close.
         }
         if kind == "login" { SMAppService.openSystemSettingsLoginItems() }
         else {
@@ -192,6 +192,7 @@ extension AppDelegate {
 
     @MainActor func returnToBrowserSettings() {
         guard let window = setupWindow, !window.isMiniaturized else { return }
+        prepareVisibleInterface()
         NSApp.unhide(nil)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)

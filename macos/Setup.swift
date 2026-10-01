@@ -55,6 +55,7 @@ extension AppDelegate {
         setupKeepOpen = (sender as? NSMenuItem)?.title == "settings…" || CommandLine.arguments.contains("--setup")
         if setupWindow == nil { makeSetupWindow() }
         renderSetup()
+        prepareVisibleInterface()
         NSApp.activate(ignoringOtherApps: true)
         setupWindow?.makeKeyAndOrderFront(nil)
     }
@@ -176,11 +177,15 @@ extension AppDelegate {
     @objc func openBrowserFromSetup() {
         settingsReturn?.stop()
         setupWindow?.orderOut(nil)
+        // Keep regular mode during the handoff to the browser window.
         showBrowser()
     }
 
     func renderSetup() {
-        if setupComplete && !wasSetupComplete && !setupKeepOpen { setupWindow?.orderOut(nil) }
+        if setupComplete && !wasSetupComplete && !setupKeepOpen {
+            setupWindow?.orderOut(nil)
+            updateWindowMode()
+        }
         wasSetupComplete = setupComplete
         let hasRuntime = FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/colima") && FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker")
         setupLabels["install"]?.stringValue = installedCorrectly ? "installed in applications." : "move igor browser to applications, then open it there."
@@ -236,7 +241,13 @@ extension AppDelegate {
         }
     }
 
-    @objc func closeSetup() { settingsReturn?.stop(); setupWindow?.orderOut(nil) }
+    @objc func closeSetup() {
+        settingsReturn?.stop()
+        settingsGuide?.close()
+        settingsGuide = nil
+        setupWindow?.orderOut(nil)
+        updateWindowMode()
+    }
     @objc func openApplications() { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications")) }
     @objc func openLog() {
         NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor Browser/service.log"))

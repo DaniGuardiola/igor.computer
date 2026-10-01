@@ -1,8 +1,8 @@
 import AppKit
 import CoreGraphics
 
-// A menu-bar app is not reliably chosen by macOS when System Settings closes.
-// Return only from the Settings window the user opened, not from unrelated work.
+// Track Settings closure for guide cleanup. Activation is restored by macOS
+// while the app uses regular mode for its visible interface.
 struct SettingsReturnState {
     var sawWindow = false
     var settingsWasForeground = false

@@ -14,6 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var mode = "starting"
     var helpMessage = ""
     var opening = false
+    var quitting = false
+    var shutdownComplete = false
+    var terminationPending = false
     var settingsReturn: SettingsReturnObserver?
     var settingsGuide: SettingsGuide?
     var setupWindow: NSWindow?
@@ -69,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        makeApplicationMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "igor browser")
         UNUserNotificationCenter.current().delegate = self
@@ -253,6 +257,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 self.makeWindow()
                 guard let token = self.token else { return }
                 self.webView?.load(URLRequest(url: URL(string: self.origin + "/viewer#" + token)!))
+                self.prepareVisibleInterface()
                 NSApp.activate(ignoringOtherApps: true)
                 self.window?.makeKeyAndOrderFront(nil)
                 self.updateMenu()
@@ -340,10 +345,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func hideWindow() {
         webView?.loadHTMLString("", baseURL: nil)
         window?.orderOut(nil)
+        updateWindowMode()
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if sender === setupWindow { settingsReturn?.stop(); sender.orderOut(nil); return false }
+        if sender === setupWindow { closeSetup(); return false }
         hideBrowser(); return false
     }
 
@@ -382,6 +388,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     @objc func quit() {
+        guard !quitting else { return }
+        quitting = true
         let beforeShutdown = mode == "agent" ? "/status" : "/cancel"
         request(beforeShutdown, post: mode != "agent") { _ in
             self.request("/shutdown", post: true) { _ in
@@ -392,7 +400,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 stop.standardOutput = FileHandle.nullDevice
                 stop.standardError = FileHandle.nullDevice
                 try? stop.run()
-                NSApp.terminate(nil)
+                self.shutdownComplete = true
+                if self.terminationPending { NSApp.reply(toApplicationShouldTerminate: true) }
+                else { NSApp.terminate(nil) }
             }
         }
     }

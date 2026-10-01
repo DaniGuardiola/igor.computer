@@ -86,6 +86,6 @@ import AppKit
   let bottomToggle = CGRect(x: 500, y: 0, width: 44, height: 20)
   assert(GuidePlacement.nextTo(bottomToggle, size: size, visible: screen) == nil)
   print("PASS: pointer alignment, unobstructed toggle, edge flipping, and constrained-screen fallback.")
-  print("PASS: foreground close returns focus; background close and desktop switches do not.")
+  print("PASS: Settings closure distinguishes foreground, background, and desktop switches.")
  }
 }
