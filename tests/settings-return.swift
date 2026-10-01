@@ -55,6 +55,20 @@ import AppKit
    assert(!placement.frame.intersects(estimate))
    assert(abs(placement.frame.minY + placement.pointerY - estimate.midY) < 1)
   }
+  let wideScreen = CGRect(x: 0, y: 0, width: 1600, height: 900)
+  for window in [defaultWindow, defaultWindow.offsetBy(dx: 700, dy: 0)] {
+   var expectedX: CGFloat?
+   for step: NotificationGuideStep in [.allow, .desktop, .notificationCenter, .persistent] {
+    let control = GuideEstimate.notification(step, in: window)!
+    let placement = GuidePlacement.besideWindow(window, pointingAt: control, size: size, visible: wideScreen)!
+    assert(!placement.frame.intersects(window))
+    assert(wideScreen.contains(placement.frame))
+    assert(abs(placement.frame.minY + placement.pointerY - control.midY) < 1)
+    if let x = expectedX { assert(placement.frame.minX == x) }
+    expectedX = placement.frame.minX
+   }
+  }
+  print("PASS: every guide step shares horizontal position and leaves all Settings controls clear, on either side.")
   assert(abs(GuideEstimate.notification(.desktop, in: defaultWindow)!.minX - (defaultWindow.minX + 305)) < 1)
   assert(GuideEstimate.notification(.ready, in: defaultWindow) == nil)
   assert(GuideEstimate.notification(.allow, in: CGRect(x: 0, y: 0, width: 400, height: 400)) == nil)

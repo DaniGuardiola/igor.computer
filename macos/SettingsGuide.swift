@@ -60,7 +60,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         let pointerTarget = target ?? estimate
         estimated = target == nil && estimate != nil
         if let target = pointerTarget, frame.insetBy(dx: -5, dy: -5).contains(target),
-           let placement = GuidePlacement.nextTo(target, size: panel.frame.size, visible: visible) {
+           let placement = GuidePlacement.besideWindow(frame, pointingAt: target, size: panel.frame.size, visible: visible) {
             appearance.side = placement.side
             appearance.pointerY = placement.pointerY
             appearance.targeted = !estimated

@@ -93,6 +93,12 @@ struct GuidePlacement {
     let side: GuidePointerSide
     let pointerY: CGFloat
 
+    static func besideWindow(_ window: CGRect, pointingAt target: CGRect, size: CGSize, visible: CGRect) -> GuidePlacement? {
+        // Use the window edges for every step so the panel never covers nearby controls.
+        let row = CGRect(x: window.minX, y: target.minY, width: window.width, height: target.height)
+        return nextTo(row, size: size, visible: visible)
+    }
+
     static func nextTo(_ target: CGRect, size: CGSize, visible: CGRect) -> GuidePlacement? {
         guard visible.contains(target), size.width <= visible.width, size.height <= visible.height else { return nil }
         let gap: CGFloat = 14
