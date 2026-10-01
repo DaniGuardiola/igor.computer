@@ -11,7 +11,15 @@ extension AppDelegate {
                 self.permissionCheckRunning = false
                 self.permissionsChecked = true
                 self.notificationDetermined = settings.authorizationStatus != .notDetermined
-                self.notificationReady = settings.authorizationStatus == .authorized && settings.alertSetting == .enabled
+                self.notificationAllowed = settings.authorizationStatus == .authorized
+                self.notificationDesktop = settings.alertSetting == .enabled && settings.alertStyle != .none
+                switch settings.alertStyle {
+                case .banner: self.notificationStyle = "temporary"
+                case .alert: self.notificationStyle = "persistent"
+                case .none: self.notificationStyle = "off"
+                @unknown default: self.notificationStyle = "unknown"
+                }
+                self.notificationReady = self.notificationAllowed && self.notificationDesktop
                 self.writeAppStatus()
                 self.settingsGuide?.refresh()
                 if !self.startupInspected {
@@ -29,8 +37,9 @@ extension AppDelegate {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let data = try JSONSerialization.data(withJSONObject: [
-                "checkedat": Date().timeIntervalSince1970 * 1000,
+                "checkedAt": Date().timeIntervalSince1970 * 1000,
                 "notifications": notificationReady && notificationError == nil,
+                "notificationSettings": ["allowed": notificationAllowed, "desktop": notificationDesktop, "style": notificationStyle],
                 "login": loginReady
             ])
             let url = directory.appendingPathComponent("app-status.json")
@@ -204,7 +213,9 @@ extension AppDelegate {
         setupButtons["login"]?.isHidden = !loginNeedsApproval
         setupButtons["notifications"]?.title = notificationDetermined ? "settings…" : "allow"
         if runtimeReady && runtimeIssues.isEmpty && startupError == nil { setupLabels["runtime"]?.stringValue = "ready in the background" }
-        if notificationReady && notificationError == nil { setupLabels["notifications"]?.stringValue = "alerts when your ai needs you" }
+        if notificationError == nil {
+            setupLabels["notifications"]?.stringValue = notificationReady ? "desktop · " + notificationStyle : notificationGuideStep.instruction
+        }
         if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "available whenever you log in" }
         setupDescription?.stringValue = "a browser for your agent."
         setupSummary?.stringValue = setupComplete ? "open it anytime from the menu bar. automation pauses while you use it." : (mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar.")

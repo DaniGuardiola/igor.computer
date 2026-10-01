@@ -21,3 +21,13 @@ test('missing login setup does not prevent notifications for a running app', () 
   assert.equal(status.ready, false);
   assert.equal(helpDelivery(status), 'notification');
 });
+
+test('desktop failure is distinct from permission denial; temporary remains ready', () => {
+  const missingDesktop = nativeReadiness({ checkedAt: 10000, notifications: false, login: true,
+    notificationSettings: { allowed: true, desktop: false, style: 'temporary' } }, 10000);
+  assert.match(missingDesktop.issues[0], /desktop/);
+  const temporary = nativeReadiness({ checkedAt: 10000, notifications: true, login: true,
+    notificationSettings: { allowed: true, desktop: true, style: 'temporary' } }, 10000);
+  assert.equal(temporary.ready, true);
+  assert.equal(temporary.notificationSettings.style, 'temporary');
+});

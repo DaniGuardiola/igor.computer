@@ -3,9 +3,9 @@ export function nativeReadiness(status, now = Date.now()) {
     return { ready: false, issues: ['Open Igor Browser to enable human help.'], notifications: false };
   }
   const issues = [];
-  if (!status.notifications) issues.push('Allow Igor Browser notifications and alerts in System Settings.');
+  if (!status.notifications) issues.push(status.notificationSettings?.allowed ? 'Enable desktop notifications for Igor Browser in System Settings.' : 'Allow Igor Browser notifications in System Settings.');
   if (!status.login) issues.push('Enable Igor Browser at login in its setup window.');
-  return { ready: issues.length === 0, issues, notifications: status.notifications === true };
+  return { ready: issues.length === 0, issues, notifications: status.notifications === true, ...(status.notificationSettings ? { notificationSettings: status.notificationSettings } : {}) };
 }
 export function helpDelivery(setup) {
   return setup.notifications ? 'notification' : 'setup-required';

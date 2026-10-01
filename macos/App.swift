@@ -29,6 +29,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var setupSummary: NSTextField?
     var wasSetupComplete = false
     var setupKeepOpen = false
+    var notificationAllowed = false
+    var notificationDesktop = false
+    var notificationStyle = "unknown"
+    var notificationGuideStep: NotificationGuideStep {
+        .current(allowed: notificationAllowed, desktop: notificationDesktop, style: notificationStyle)
+    }
     var notificationReady = false
     var notificationDetermined = false
     var permissionsChecked = false

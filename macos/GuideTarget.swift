@@ -3,7 +3,7 @@ import ApplicationServices
 
 // Read only with existing trust; never request Accessibility for this decoration.
 enum GuideTarget {
-    static func find(kind: String) -> CGRect? {
+    static func find(kind: String, step: NotificationGuideStep = .allow) -> CGRect? {
         guard AXIsProcessTrusted(),
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first else { return nil }
         let root = AXUIElementCreateApplication(app.processIdentifier)
@@ -20,10 +20,16 @@ enum GuideTarget {
             AXUIElementSetMessagingTimeout(element, 0.03)
             let identifier = string(element, kAXIdentifierAttribute)
             let role = string(element, kAXRoleAttribute)
-            if role == "AXCheckBox" || role == "AXSwitch" {
+            if role == "AXCheckBox" || role == "AXSwitch" || role == "AXRadioButton" {
                 let description = string(element, kAXDescriptionAttribute).lowercased()
                 let title = string(element, kAXTitleAttribute).lowercased()
-                let matched = kind == "notifications" ? identifier == "allow-notifications" :
+                let notificationMatch: Bool
+                switch step {
+                case .persistent: notificationMatch = role == "AXRadioButton" && description == "persistent"
+                case .desktop: notificationMatch = identifier == step.targetIdentifier || identifier == "notification-presence-desktop"
+                default: notificationMatch = identifier == step.targetIdentifier
+                }
+                let matched = kind == "notifications" ? notificationMatch :
                     (identifier.contains("ai.igor.browser") || description.contains("igor browser") || title.contains("igor browser"))
                 if matched, let frame = frame(element) { return frame }
             }

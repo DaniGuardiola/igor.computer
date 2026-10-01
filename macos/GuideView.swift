@@ -7,6 +7,7 @@ final class GuideAppearance: ObservableObject {
     @Published var side: GuidePointerSide = .none
     @Published var pointerY: CGFloat = 66
     @Published var targeted = false
+    @Published var notificationStep: NotificationGuideStep = .allow
 }
 
 // A continuous outline keeps the material, border, and pointer seamless.
@@ -60,7 +61,7 @@ struct GuideView: View {
                     .frame(width: 32, height: 32)
                     .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(kind == "login" ? "start at login" : "allow notifications")
+                    Text(kind == "login" ? "start at login" : appearance.notificationStep.title)
                         .font(.system(size: 14, weight: .semibold))
                     Text("igor browser").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
@@ -92,7 +93,7 @@ struct GuideView: View {
         if kind == "login" {
             return appearance.targeted ? "turn this on to keep your agent's browser available after login." : "turn on igor browser in login items to keep it available for your agent."
         }
-        return appearance.targeted ? "turn this on so your agent can ask for your help. choose banners or alerts below." : "turn on allow notifications, then choose banners or alerts so your agent can ask for help."
+        return appearance.notificationStep.instruction
     }
 }
 

@@ -7,6 +7,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
     let panel: NSPanel
     let tracker = SettingsWindowTracker()
     let isComplete: () -> Bool
+    let notificationStep: () -> NotificationGuideStep
     let onComplete: () -> Void
     var deadline = Date().addingTimeInterval(300)
     let appearance = GuideAppearance()
@@ -18,8 +19,9 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
     var timer: Timer?
     var closed = false
 
-    init(kind: String, isComplete: @escaping () -> Bool, onComplete: @escaping () -> Void) {
+    init(kind: String, notificationStep: @escaping () -> NotificationGuideStep = { .allow }, isComplete: @escaping () -> Bool, onComplete: @escaping () -> Void) {
         self.kind = kind
+        self.notificationStep = notificationStep
         self.isComplete = isComplete
         self.onComplete = onComplete
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 330, height: 132), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -76,6 +78,12 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
 
     func refresh() {
         guard !closed else { return }
+        let step = notificationStep()
+        if appearance.notificationStep != step {
+            appearance.notificationStep = step
+            target = nil
+            lastTargetCheck = .distantPast
+        }
         if isComplete() { close(); onComplete(); return }
         if Date() > deadline { close(); return }
         if let frame = tracker.currentFrame { attach(to: frame) }
@@ -84,11 +92,11 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         let kind = self.kind
         let windowFrameAtQuery = tracker.currentFrame
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let target = GuideTarget.find(kind: kind)
+            let target = GuideTarget.find(kind: kind, step: step)
             DispatchQueue.main.async {
                 guard let self = self, !self.closed else { return }
                 self.targetCheckRunning = false
-                guard windowFrameAtQuery == self.tracker.currentFrame else { self.lastTargetCheck = .distantPast; return }
+                guard step == self.notificationStep(), windowFrameAtQuery == self.tracker.currentFrame else { self.lastTargetCheck = .distantPast; return }
                 self.target = target.flatMap { GuideTarget.appKitFrame($0) }
                 if let frame = self.tracker.currentFrame { self.attach(to: frame) }
             }
@@ -118,10 +126,10 @@ extension AppDelegate {
             }
             NSWorkspace.shared.open(destination.url!)
         }
-        let needsGuide = kind == "login" ? SMAppService.mainApp.status != .enabled : !notificationReady
+        let needsGuide = kind == "login" ? SMAppService.mainApp.status != .enabled : notificationGuideStep != .ready
         guard needsGuide else { settingsGuide = nil; return }
-        settingsGuide = SettingsGuide(kind: kind, isComplete: { [weak self] in
-            kind == "login" ? SMAppService.mainApp.status == .enabled : self?.notificationReady == true
+        settingsGuide = SettingsGuide(kind: kind, notificationStep: { [weak self] in self?.notificationGuideStep ?? .ready }, isComplete: { [weak self] in
+            kind == "login" ? SMAppService.mainApp.status == .enabled : self?.notificationGuideStep == .ready
         }, onComplete: { [weak self] in
             self?.settingsGuide = nil
             self?.refreshSetup()
