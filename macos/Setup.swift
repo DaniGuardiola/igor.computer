@@ -48,8 +48,8 @@ extension AppDelegate {
     }
 
     func makeSetupWindow() {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 610, height: 570), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Igor Browser Setup"
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = "Igor Browser"
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.center()
@@ -57,63 +57,112 @@ extension AppDelegate {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         window.contentView = view
-        let title = NSTextField(labelWithString: "A browser that stays out of your way.")
-        title.font = .systemFont(ofSize: 23, weight: .semibold)
-        let subtitle = NSTextField(wrappingLabelWithString: "Complete setup once. Your browser stays in the background until you choose to open it.")
+
+        let globe = NSImageView(image: NSImage(systemSymbolName: "globe", accessibilityDescription: nil)!)
+        globe.contentTintColor = .controlAccentColor
+        globe.symbolConfiguration = .init(pointSize: 32, weight: .regular)
+        globe.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        let title = NSTextField(labelWithString: "Igor Browser")
+        title.font = .systemFont(ofSize: 22, weight: .semibold)
+        let subtitle = NSTextField(wrappingLabelWithString: "A private browser, ready in the background.")
+        subtitle.font = .systemFont(ofSize: 13)
         subtitle.textColor = .secondaryLabelColor
-        let stack = NSStackView(views: [title, subtitle])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 22
+        let headerText = NSStackView(views: [title, subtitle])
+        headerText.orientation = .vertical; headerText.alignment = .leading; headerText.spacing = 6
+        let header = NSStackView(views: [globe, headerText]); header.spacing = 14
+
+        let card = NSStackView()
+        card.orientation = .vertical; card.alignment = .leading; card.spacing = 0
+        card.wantsLayer = true
+        card.layer?.cornerRadius = 12
+        card.layer?.borderWidth = 1
+        card.layer?.borderColor = NSColor.separatorColor.cgColor
+        card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
         let rows: [(String, String, Selector)] = [
-            ("install", "Install the app", #selector(openApplications)),
-            ("runtime", "Browser runtime", #selector(retryRuntime)),
-            ("notifications", "Human help notifications", #selector(enableNotifications)),
+            ("install", "Applications", #selector(openApplications)),
+            ("runtime", "Browser", #selector(retryRuntime)),
+            ("notifications", "Help notifications", #selector(enableNotifications)),
             ("login", "Start at login", #selector(toggleLogin))
         ]
         for (key, name, action) in rows {
+            let row = NSView()
+            let icon = NSImageView(image: NSImage(systemSymbolName: "circle", accessibilityDescription: "Checking")!)
+            icon.symbolConfiguration = .init(pointSize: 17, weight: .medium)
             let heading = NSTextField(labelWithString: name)
-            heading.font = .systemFont(ofSize: 14, weight: .semibold)
+            heading.font = .systemFont(ofSize: 13, weight: .medium)
             let detail = NSTextField(wrappingLabelWithString: "Checking…")
             detail.font = .systemFont(ofSize: 12)
             detail.textColor = .secondaryLabelColor
             let text = NSStackView(views: [heading, detail])
-            text.orientation = .vertical; text.alignment = .leading; text.spacing = 5
+            text.orientation = .vertical; text.alignment = .leading; text.spacing = 4
             let button = NSButton(title: "Continue", target: self, action: action)
-            button.bezelStyle = .rounded
-            button.widthAnchor.constraint(equalToConstant: 125).isActive = true
-            let row = NSStackView(views: [text, button])
-            row.spacing = 16; row.alignment = .centerY
-            stack.addArrangedSubview(row)
-            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            button.bezelStyle = .rounded; button.controlSize = .small
+            for subview in [icon, text, button] { subview.translatesAutoresizingMaskIntoConstraints = false; row.addSubview(subview) }
+            NSLayoutConstraint.activate([
+                row.heightAnchor.constraint(equalToConstant: 76),
+                icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 16),
+                icon.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                icon.widthAnchor.constraint(equalToConstant: 22),
+                text.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
+                text.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                text.trailingAnchor.constraint(lessThanOrEqualTo: button.leadingAnchor, constant: -12),
+                button.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+                button.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                button.widthAnchor.constraint(equalToConstant: 98)
+            ])
+            if key == "login" {
+                let toggle = NSSwitch()
+                toggle.target = self; toggle.action = #selector(toggleLogin)
+                toggle.translatesAutoresizingMaskIntoConstraints = false; row.addSubview(toggle)
+                NSLayoutConstraint.activate([toggle.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16), toggle.centerYAnchor.constraint(equalTo: row.centerYAnchor)])
+                setupLoginSwitch = toggle
+            }
+            card.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: card.widthAnchor).isActive = true
+            setupRows[key] = row; setupIcons[key] = icon
             setupLabels[key] = detail; setupButtons[key] = button
         }
         let summary = NSTextField(wrappingLabelWithString: "")
+        summary.font = .systemFont(ofSize: 12)
         summary.textColor = .secondaryLabelColor
         let done = NSButton(title: "Close", target: self, action: #selector(closeSetup))
         done.bezelStyle = .rounded
-        let logs = NSButton(title: "Open Log", target: self, action: #selector(openLog))
-        logs.bezelStyle = .rounded
-        let footer = NSStackView(views: [logs, done]); footer.spacing = 12
-        stack.addArrangedSubview(summary); stack.addArrangedSubview(footer)
+        let primary = NSButton(title: "Open Browser", target: self, action: #selector(openBrowserFromSetup))
+        primary.bezelStyle = .rounded; primary.keyEquivalent = "\r"
+        primary.bezelColor = .controlAccentColor
+        let logs = NSButton(title: "View Log", target: self, action: #selector(openLog))
+        logs.bezelStyle = .rounded; logs.controlSize = .small
+        let spacer = NSView()
+        let footer = NSStackView(views: [logs, spacer, done, primary]); footer.spacing = 10
+        let stack = NSStackView(views: [header, card, summary, footer])
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 20
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 28),
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -24)
+            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 24),
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            card.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            summary.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            footer.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
-        setupSummary = summary
-        setupWindow = window
+        setupHeading = title; setupDescription = subtitle
+        setupPrimary = primary; setupLog = logs
+        setupSummary = summary; setupWindow = window
         if let index = CommandLine.arguments.firstIndex(of: "--capture-setup"), index + 1 < CommandLine.arguments.count {
             let path = CommandLine.arguments[index + 1]
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                view.layoutSubtreeIfNeeded()
                 guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: bitmap)
                 try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
             }
         }
+    }
+
+    @objc func openBrowserFromSetup() {
+        setupWindow?.orderOut(nil)
+        showBrowser()
     }
 
     func renderSetup() {
@@ -141,7 +190,34 @@ extension AppDelegate {
             setupButtons["login"]?.title = "Enable"
         }
         if let error = loginError { setupLabels["login"]?.stringValue = "Could not change startup: " + error }
-        setupSummary?.stringValue = setupComplete ? "All set. You can close this window. Open the browser anytime from the menu bar." : (mode == "pending" ? "Your AI is waiting for help. Finish setup, then choose Show Browser from the menu bar." : "You can close this window and finish later from the menu bar. No Accessibility or Screen Recording permission is needed.")
+        let checks = ["install": installedCorrectly, "runtime": runtimeReady && runtimeIssues.isEmpty && startupError == nil, "notifications": notificationReady && notificationError == nil, "login": loginReady && loginError == nil]
+        for (key, ready) in checks {
+            setupIcons[key]?.image = NSImage(systemSymbolName: ready ? "checkmark.circle.fill" : "exclamationmark.circle", accessibilityDescription: ready ? "Ready" : "Needs attention")
+            setupIcons[key]?.contentTintColor = ready ? .systemGreen : .systemOrange
+        }
+        setupRows["install"]?.isHidden = installedCorrectly
+        let loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
+        setupLoginSwitch?.isHidden = loginNeedsApproval
+        setupLoginSwitch?.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        setupButtons["login"]?.isHidden = !loginNeedsApproval
+        setupButtons["notifications"]?.title = notificationDetermined ? "Settings…" : "Allow"
+        if runtimeReady && runtimeIssues.isEmpty && startupError == nil { setupLabels["runtime"]?.stringValue = "Ready in the background" }
+        if notificationReady && notificationError == nil { setupLabels["notifications"]?.stringValue = "Alerts when your AI needs you" }
+        if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "Available whenever you log in" }
+        setupDescription?.stringValue = setupComplete ? "Ready when you need it." : "A few steps, then out of your way."
+        setupSummary?.stringValue = setupComplete ? "Open it anytime from the menu bar. Automation pauses while you use it." : (mode == "pending" ? "Your AI is waiting. Finish the steps above to help." : "Finish setup now, or come back from the menu bar.")
+        setupPrimary?.isEnabled = runtimeReady
+        setupLog?.isHidden = startupError == nil && runtimeIssues.isEmpty
+        if let window = setupWindow, let view = window.contentView {
+            view.layoutSubtreeIfNeeded()
+            let height: CGFloat = installedCorrectly ? 432 : 508
+            if abs(view.frame.height - height) > 1 {
+                var frame = window.frame
+                let difference = height - view.frame.height
+                frame.origin.y -= difference; frame.size.height += difference
+                window.setFrame(frame, display: true)
+            }
+        }
     }
 
     @objc func closeSetup() { setupWindow?.orderOut(nil) }

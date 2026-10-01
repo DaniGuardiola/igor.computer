@@ -16,6 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var opening = false
     var settingsGuide: SettingsGuide?
     var setupWindow: NSWindow?
+    var setupRows: [String: NSView] = [:]
+    var setupIcons: [String: NSImageView] = [:]
+    var setupHeading: NSTextField?
+    var setupDescription: NSTextField?
+    var setupPrimary: NSButton?
+    var setupLog: NSButton?
+    var setupLoginSwitch: NSSwitch?
     var setupLabels: [String: NSTextField] = [:]
     var setupButtons: [String: NSButton] = [:]
     var setupSummary: NSTextField?
