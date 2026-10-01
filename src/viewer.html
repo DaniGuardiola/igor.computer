@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Igor Browser</title>
+<style>html,body{margin:0;height:100%;background:#17191d;color:#eee;font:15px system-ui}#screen{height:100%}#message{position:absolute;inset:0;display:grid;place-items:center}</style>
+<div id="screen"></div><div id="message">Connecting to your browser…</div>
+<script type="module">
+const message = document.querySelector('#message');
+try {
+  const token = location.hash.slice(1);
+  history.replaceState(null, '', '/viewer');
+  if (token) {
+    const session = await fetch('/session', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    if (!session.ok) throw new Error('Could not authenticate the browser viewer.');
+  }
+  const status = await fetch('/status').then(r => r.json());
+  if (status.mode !== 'human') throw new Error('Take control from the menu bar to open this browser.');
+  const { default: RFB } = await import('/vnc/core/rfb.js');
+  const rfb = new RFB(document.querySelector('#screen'), `ws://${location.host}/vnc/websockify`);
+  rfb.scaleViewport = true;
+  rfb.resizeSession = false;
+  rfb.addEventListener('connect', () => { message.style.display = 'none'; rfb.focus(); });
+  rfb.addEventListener('disconnect', () => { message.style.display = 'grid'; message.textContent = 'Browser hidden. Automation may continue after you return control.'; });
+} catch (error) { message.textContent = error.message; }
+</script></html>

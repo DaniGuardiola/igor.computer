@@ -1,0 +1,14 @@
+{
+  "apiVersion": 1,
+  "name": "Igor Browser",
+  "description": "Persistent headed Chromium in a private VM, with native human takeover.",
+  "capabilities": [{
+    "id": "browser",
+    "name": "Browser",
+    "description": "Use the headed VM browser when Lightpanda cannot complete a site flow.",
+    "contributions": [
+      {"type": "skill", "path": "./skills/browser/SKILL.md"},
+      {"type": "mcp", "id": "browser", "node": "./src/mcp.mjs", "toolTimeoutSeconds": 120}
+    ]
+  }]
+}

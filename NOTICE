@@ -1,0 +1,5 @@
+container/seccomp.json is based on Moby's default seccomp profile:
+https://github.com/moby/profiles/blob/main/seccomp/default.json
+Copyright Moby contributors. Licensed under the Apache License, Version 2.0.
+The final syscall rule enables Chromium's unprivileged namespace sandbox.
+Third-party runtime components retain their own licenses.
