@@ -324,17 +324,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func makeWindow() {
         if window != nil { return }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 850),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1152, height: 800),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "igor browser · you have control"
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("IgorBrowserViewer")
-        window.center()
         let view = NSView()
         window.contentView = view
         configureBrowserToolbar(window)
-        window.minSize = NSSize(width: 640, height: 420)
+        // Constrain the browser area, not the outer frame including its toolbar.
+        let displayRatio = NSSize(width: 1440, height: 1000)
+        window.contentAspectRatio = displayRatio
+        window.contentMinSize = NSSize(width: 640, height: 640 * displayRatio.height / displayRatio.width)
+        let toolbarHeight = window.frame.height - window.contentLayoutRect.height
+        let available = (window.screen ?? NSScreen.main)?.visibleFrame.size ?? NSSize(width: 1440, height: 1000)
+        let width = min(window.contentLayoutRect.width, available.width,
+                        max(1, available.height - toolbarHeight) * displayRatio.width / displayRatio.height)
+        window.setContentSize(NSSize(width: width, height: width * displayRatio.height / displayRatio.width))
+        window.center()
+        window.standardWindowButton(.closeButton)?.toolTip = "close this window and keep your agent paused"
         let web = WKWebView()
         web.navigationDelegate = self
         web.translatesAutoresizingMaskIntoConstraints = false

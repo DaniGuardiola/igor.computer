@@ -56,21 +56,22 @@ extension AppDelegate: NSToolbarDelegate {
             let button: NSButton
             switch identifier {
             case .restoreWindows:
-                button = NSButton(image: NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "restore windows")!, target: self, action: #selector(restoreBrowserWindows))
-                button.toolTip = "restore all browser windows"
+                button = NSButton(title: "restore", image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)!, target: self, action: #selector(restoreBrowserWindows))
+                button.imagePosition = .imageLeading
+                button.toolTip = "bring all browser windows back and maximize them"
                 button.bezelStyle = .texturedRounded
                 item.label = "restore"
             case .hideBrowser:
-                button = NSButton(title: "hide", target: self, action: #selector(hideBrowser))
-                button.toolTip = "hide browser · keep automation paused"
+                button = NSButton(title: "close & pause", target: self, action: #selector(hideBrowser))
+                button.toolTip = "close this window and keep your agent paused"
                 button.bezelStyle = .texturedRounded
-                item.label = "hide"
+                item.label = "close & pause"
             case .returnToAgent:
-                button = NSButton(title: "done", target: self, action: #selector(finish))
-                button.toolTip = "return browser to your agent"
+                button = NSButton(title: "done & resume", target: self, action: #selector(finish))
+                button.toolTip = "close this window and let your agent use the browser"
                 button.bezelStyle = .rounded
                 button.bezelColor = .controlAccentColor
-                item.label = "done"
+                item.label = "done & resume"
             default: return nil
             }
             item.view = button
