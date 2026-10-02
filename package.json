@@ -9,7 +9,7 @@
     "mcp": "node src/mcp.mjs",
     "test": "node --test tests/*.test.mjs",
     "build:mac": "bash scripts/build-mac.sh",
-    "vm:build": "docker --context colima-igor-browser build -t igor-browser:0.1.1 container",
+    "vm:build": "bash scripts/build-browser.sh",
     "vm:start": "bash scripts/start-browser.sh",
     "package:dmg": "bash scripts/package-dmg.sh",
     "test:mac": "bash scripts/test-mac.sh"

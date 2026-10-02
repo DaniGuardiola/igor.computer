@@ -4,6 +4,7 @@ export class Control {
   mode = 'agent';
   request = null;
   busy = false;
+  humanBusy = false;
 
   status() {
     return { mode: this.mode, request: this.request, busy: this.busy };
@@ -29,6 +30,7 @@ export class Control {
   }
 
   resume() {
+    if (this.humanBusy) throw new Error('Finishing a window action. Try again shortly.');
     if (!['human', 'paused'].includes(this.mode)) throw new Error('Take control before returning the browser.');
     if (this.request && !this.request.outcome) this.request.outcome = 'continued';
     this.mode = 'agent';
@@ -40,6 +42,13 @@ export class Control {
     if (this.request && !this.request.outcome) this.request.outcome = 'cancelled';
     this.mode = 'paused';
     return this.status();
+  }
+
+  async runHuman(fn) {
+    if (this.mode !== 'human') throw new Error('Open the browser to manage windows.');
+    if (this.humanBusy) throw new Error('Finishing a window action. Try again shortly.');
+    this.humanBusy = true;
+    try { return await fn(); } finally { this.humanBusy = false; }
   }
 
   async run(fn) {

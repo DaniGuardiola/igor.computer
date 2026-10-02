@@ -74,3 +74,18 @@ test('menu pause cannot cancel a pending human request', () => {
   assert.equal(control.mode, 'pending');
   assert.equal(request.outcome, null);
 });
+
+
+test('window actions require human ownership and drain before automation resumes', async () => {
+  const control = new Control();
+  await assert.rejects(control.runHuman(() => assert.fail('Must not run')), /Open the browser/);
+  control.takeControl();
+  let release;
+  const action = control.runHuman(() => new Promise(resolve => { release = resolve; }));
+  assert.throws(() => control.resume(), /Finishing a window action/);
+  control.cancel();
+  assert.throws(() => control.resume(), /Finishing a window action/);
+  release();
+  await action;
+  assert.equal(control.resume().mode, 'agent');
+});

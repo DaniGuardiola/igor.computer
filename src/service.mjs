@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import httpProxy from 'http-proxy';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { browserWindows } from './windows.mjs';
 import { Control } from './control.mjs';
 import { nativeReadiness, helpDelivery } from './readiness.mjs';
 
@@ -137,6 +138,10 @@ const server = http.createServer(async (req, res) => {
       return proxy.web(req, res);
     }
     if (path === '/status' && req.method === 'GET') return json(res, await getStatus());
+    if (path === '/windows' && req.method === 'GET') {
+      if (control.mode !== 'human') throw new Error('Open the browser to manage windows.');
+      return json(res, await browserWindows());
+    }
     if (path === '/tools' && req.method === 'GET') return json(res, { tools });
     if (req.method !== 'POST') return json(res, { error: 'Not found.' }, 404);
     const args = await body(req);
@@ -150,9 +155,13 @@ const server = http.createServer(async (req, res) => {
       const status = await changeControl(() => control.requestHuman(args.message.trim(), args.pageId));
       return json(res, { ...status, ...await getStatus() });
     }
+    if (path === '/windows' && req.method === 'POST') {
+      if (control.mode !== 'human') throw new Error('Open the browser to manage windows.');
+      return json(res, await control.runHuman(() => browserWindows(args.action, args)));
+    }
     if (path === '/take-control') { await requireBrowser(); const status = await changeControl(() => control.takeControl()); return json(res, status); }
     if (path === '/pause') { const status = await changeControl(() => control.pause()); return json(res, status); }
-    if (path === '/resume') { disconnectViewer(); const status = await changeControl(() => control.resume()); return json(res, status); }
+    if (path === '/resume') { const status = await changeControl(() => { const status = control.resume(); disconnectViewer(); return status; }); return json(res, status); }
     if (path === '/cancel') { disconnectViewer(); const status = await changeControl(() => control.cancel()); return json(res, status); }
     if (path === '/shutdown') { json(res, { ok: true }); setImmediate(close); return; }
     if (path === '/call') {

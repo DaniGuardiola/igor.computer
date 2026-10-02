@@ -11,6 +11,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var pauseChangeRunning = false
     var window: NSWindow?
     var webView: WKWebView?
+    var windowStrip: NSScrollView?
+    var windowChips: NSStackView?
+    var windowListSignature = ""
+    var windowGeneration = ""
+    var windowListRunning = false
+    var windowActionRunning = false
+    var browserNeedsFocus = false
     var timer: Timer?
     var worker: Process?
     var lastRequest: String?
@@ -130,15 +137,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         do { try process.run(); worker = process } catch { startupError = error.localizedDescription; refreshSetup() }
     }
 
-    func request(_ path: String, post: Bool = false, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+    func request(_ path: String, post: Bool = false, arguments: [String: Any]? = nil, completion: @escaping (Result<[String: Any], Error>) -> Void) {
         guard let token = token else {
             completion(.failure(NSError(domain: "IgorBrowser", code: 1, userInfo: [NSLocalizedDescriptionKey: "browser service is starting."])))
             return
         }
         var request = URLRequest(url: URL(string: origin + path)!)
         request.httpMethod = post ? "POST" : "GET"
+        if let arguments = arguments {
+            request.httpBody = try? JSONSerialization.data(withJSONObject: arguments)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 5
+        request.timeoutInterval = path == "/windows" ? 10 : 5
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let error = error { completion(.failure(error)); return }
@@ -196,6 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             }
             self.renderSetup()
             self.updateMenu()
+            self.refreshBrowserWindows()
         }
     }
 
@@ -272,6 +284,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 NSApp.activate(ignoringOtherApps: true)
                 self.window?.makeKeyAndOrderFront(nil)
                 self.updateMenu()
+                self.browserNeedsFocus = true
+                self.refreshBrowserWindows()
                 if CommandLine.arguments.contains("--type-test") {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                         self.webView?.evaluateJavaScript("const c=document.querySelector('canvas'); c.focus(); for(const key of 'human-control-ok'){const code=key==='-'?'Minus':'Key'+key.toUpperCase();c.dispatchEvent(new KeyboardEvent('keydown',{key,code,bubbles:true}));c.dispatchEvent(new KeyboardEvent('keyup',{key,code,bubbles:true}));}")
@@ -289,6 +303,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                                 try? image.write(to: URL(fileURLWithPath: path + ".canvas.png"))
                             }
                             try? "Viewer JavaScript evaluated".write(toFile: path + ".json", atomically: true, encoding: .utf8)
+                        }
+                        if let frameView = self.window?.contentView?.superview {
+                            let rect = NSRect(x: 0, y: frameView.bounds.maxY - 72, width: frameView.bounds.width, height: 72)
+                            if let bitmap = frameView.bitmapImageRepForCachingDisplay(in: rect) {
+                                frameView.cacheDisplay(in: rect, to: bitmap)
+                                try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path + ".toolbar.png"))
+                            }
                         }
                         self.webView?.takeSnapshot(with: nil) { image, _ in
                             guard let image = image, let tiff = image.tiffRepresentation,
@@ -312,21 +333,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.center()
         let view = NSView()
         window.contentView = view
-        let label = NSTextField(labelWithString: "automation is paused while you use this browser.")
-        let done = NSButton(title: "done · return to agent", target: self, action: #selector(finish))
-        done.bezelStyle = .rounded
-        let hide = NSButton(title: "hide · keep paused", target: self, action: #selector(hideBrowser))
-        hide.bezelStyle = .rounded
-        let bar = NSStackView(views: [label, hide, done])
-        bar.spacing = 16
+        configureBrowserToolbar(window)
+        window.minSize = NSSize(width: 640, height: 420)
         let web = WKWebView()
         web.navigationDelegate = self
-        for subview in [bar, web] { subview.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(subview) }
+        web.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(web)
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
-            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            web.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 12),
+            web.topAnchor.constraint(equalTo: view.topAnchor),
             web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             web.bottomAnchor.constraint(equalTo: view.bottomAnchor)

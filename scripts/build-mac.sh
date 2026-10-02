@@ -8,7 +8,7 @@ node_binary="$PWD/.deps/node/bin/node"
 app_dir="$project_dir/build/Igor Browser.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources" "$app_dir/Contents/Frameworks"
 swiftc -target arm64-apple-macosx13.0 -swift-version 5 -O -module-cache-path build/module-cache \
-  macos/App.swift macos/Pause.swift macos/WindowMode.swift macos/Setup.swift macos/SettingsGuide.swift macos/GuideView.swift macos/GuideTarget.swift macos/NotificationSetup.swift macos/SettingsReturn.swift macos/Vendor/SettingsWindowTracker.swift \
+  macos/App.swift macos/BrowserWindows.swift macos/Pause.swift macos/WindowMode.swift macos/Setup.swift macos/SettingsGuide.swift macos/GuideView.swift macos/GuideTarget.swift macos/NotificationSetup.swift macos/SettingsReturn.swift macos/Vendor/SettingsWindowTracker.swift \
   -o "$app_dir/Contents/MacOS/IgorBrowser" \
   -F .deps/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -framework SwiftUI -framework AppKit -framework WebKit -framework UserNotifications -framework ServiceManagement
@@ -18,7 +18,7 @@ ditto src "$runtime_dir/src"
 ditto node_modules "$runtime_dir/node_modules"
 ditto container "$runtime_dir/container"
 cp "$node_binary" "$runtime_dir/bin/node"
-cp scripts/start-browser.sh "$runtime_dir/scripts/"
+cp scripts/start-browser.sh scripts/build-browser.sh "$runtime_dir/scripts/"
 cp scripts/run-service.sh "$app_dir/Contents/Resources/run-service.sh"
 ditto .deps/sparkle/Sparkle.framework "$app_dir/Contents/Frameworks/Sparkle.framework"
 cp .deps/node/LICENSE "$app_dir/Contents/Resources/Node-LICENSE"

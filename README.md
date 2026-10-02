@@ -9,10 +9,14 @@ Chrome DevTools tools plus a small human-handoff layer.
 
 ## Use it
 
-Choose **Show Browser** in the globe menu to configure extensions, sign in, or
-inspect the browser. Automation pauses before you get control. **Done — Return
-to Agent** hides the window and resumes automation. **Hide — Keep Paused** or
-closing the window leaves automation paused.
+Choose **show browser** in the menu bar to configure extensions, sign in, or
+inspect the browser. Automation pauses before you get control. The native window
+bar focuses or closes guest Chrome windows, including dialogs. **restore** brings
+windows onto the current guest desktop and maximizes windows that support it.
+**done** returns control to your agent; **hide** or closing the viewer keeps
+it paused. Closing every guest browser window reopens a blank window without
+restarting the virtual display or MCP service. Saved cookies remain; old page IDs
+expire and the agent must inspect fresh page state.
 
 Use **pause automation** or **resume automation** in the menu bar menu to toggle agent access without opening the browser. The first pause shows a native tip pointing to the menu icon and explaining how to resume.
 
@@ -150,3 +154,5 @@ The app uses regular activation while settings or browser windows are open, incl
 Igor integration is deferred while this standalone app is polished. Existing Igor browser fallbacks remain in use.
 
 The settings helper uses the same rounded material treatment as extend.computer. When existing Accessibility trust exposes the exact control, it sits beside that control and points at it; otherwise it stays attached to the Settings window. It never requests Accessibility permission for this feature. It flips sides at screen edges, leaves the toggle unobstructed, and removes the pointer when the target cannot be verified.
+
+Window recovery integration check: `node tests/window-recovery.mjs` after `npm run vm:build`. It uses a disposable container/profile and checks focus, restore, repeated last-window recovery, VNC continuity, saved cookies, and MCP reconnection. Add `--background-start` to verify a live Chromium process with no windows is recovered too.
