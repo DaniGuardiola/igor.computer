@@ -7,6 +7,8 @@ private final class BrowserHoverButton: NSButton {
     private var hovered = false
     private var hoverTracking: NSTrackingArea?
 
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
+
     override func updateTrackingAreas() {
         if let tracking = hoverTracking { removeTrackingArea(tracking) }
         let tracking = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
@@ -41,7 +43,8 @@ private final class BrowserHoverButton: NSButton {
             let color = destructive ? NSColor.systemRed : feedbackColor
             let opacity: CGFloat = destructive ? (isHighlighted ? 0.65 : 0.85) : (restingColor != nil ? (isHighlighted ? 0.30 : 0.20) : (isHighlighted ? 0.22 : 0.12))
             color.withAlphaComponent(opacity).setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 7, yRadius: 7).fill()
+            let inset: CGFloat = destructive ? 3 : 1
+            NSBezierPath(roundedRect: bounds.insetBy(dx: inset, dy: inset), xRadius: 6, yRadius: 6).fill()
         }
         super.draw(dirtyRect)
     }
@@ -167,6 +170,7 @@ extension AppDelegate: NSToolbarDelegate {
                 done.heightAnchor.constraint(equalToConstant: 28).isActive = true
                 button = done
                 button.imagePosition = .imageLeading
+                button.imageHugsTitle = true
                 button.font = .systemFont(ofSize: 12, weight: .medium)
                 button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
                 button.setAccessibilityLabel("done")
