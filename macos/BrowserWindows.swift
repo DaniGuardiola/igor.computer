@@ -108,6 +108,7 @@ private final class BrowserWindowChip: NSStackView {
 
 private extension NSToolbarItem.Identifier {
     static let browserWindows = Self("browserWindows")
+    static let browserActions = Self("browserActions")
     static let restoreWindows = Self("restoreWindows")
     static let hideBrowser = Self("hideBrowser")
     static let returnToAgent = Self("returnToAgent")
@@ -125,7 +126,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.browserWindows, .flexibleSpace, .restoreWindows, .hideBrowser, .returnToAgent]
+        [.browserWindows, .flexibleSpace, .browserActions]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -134,7 +135,19 @@ extension AppDelegate: NSToolbarDelegate {
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         let item = NSToolbarItem(itemIdentifier: identifier)
-        if identifier == .browserWindows {
+        if identifier == .browserActions {
+            let controls: [NSToolbarItem.Identifier] = [.restoreWindows, .hideBrowser, .returnToAgent]
+            let views = controls.compactMap { self.toolbar(toolbar, itemForItemIdentifier: $0, willBeInsertedIntoToolbar: false)?.view }
+            let group = NSStackView(views: views)
+            group.orientation = .horizontal
+            group.alignment = .centerY
+            group.distribution = .fill
+            group.spacing = 10
+            group.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            item.view = group
+            item.isBordered = false
+            item.label = "browser controls"
+        } else if identifier == .browserWindows {
             let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 650, height: 28))
             scroll.drawsBackground = false
             scroll.hasHorizontalScroller = true
@@ -245,7 +258,8 @@ extension AppDelegate: NSToolbarDelegate {
         automationSwitch?.isEnabled = !pauseChangeRunning
         automationSwitch?.toolTip = automationPaused ? "automation stays paused after you close this window" : "automation resumes after you close this window"
         automationBanner?.stringValue = automationPaused ? "automation is paused · stays paused after closing" : "automation is paused while this window is open"
-        if let done = window?.toolbar?.items.first(where: { $0.itemIdentifier == .returnToAgent })?.view as? NSButton {
+        if let group = window?.toolbar?.items.first(where: { $0.itemIdentifier == .browserActions })?.view as? NSStackView,
+           let done = group.arrangedSubviews.last as? NSButton {
             done.toolTip = automationPaused ? "close this window · keep automation paused" : "close this window · resume automation"
         }
     }
