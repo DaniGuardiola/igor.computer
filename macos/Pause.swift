@@ -4,15 +4,18 @@ extension AppDelegate {
     @objc func togglePause() {
         guard !pauseChangeRunning, ["agent", "paused", "human"].contains(mode) else { return }
         pauseChangeRunning = true
-        let path = mode == "agent" ? "/pause" : "/resume"
-        request(path, post: true) { result in
+        updateAutomationControl()
+        request("/automation-pause", post: true, arguments: ["paused": !automationPaused]) { result in
             self.pauseChangeRunning = false
             switch result {
             case .failure(let error): self.showError(error.localizedDescription)
             case .success(let status):
                 self.mode = status["mode"] as? String ?? self.mode
-                if self.mode == "agent" { self.hideWindow() }
+                self.automationPaused = status["automationPaused"] as? Bool ?? false
+                self.updateAutomationControl()
+                if !self.automationPaused { self.pauseTip?.close() }
             }
+            self.updateAutomationControl()
             self.updateMenu()
             self.poll()
         }
@@ -28,11 +31,12 @@ extension AppDelegate {
         schedulePauseTip()
     }
 
-    func schedulePauseTip() {
-        guard mode == "paused", !UserDefaults.standard.bool(forKey: "pauseTipShown") else { return }
+    func schedulePauseTip(force: Bool = false) {
+        guard mode == "paused", force || !UserDefaults.standard.bool(forKey: "pauseTipShown") else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             guard let self = self, self.mode == "paused", !self.statusMenuOpen,
-                  !UserDefaults.standard.bool(forKey: "pauseTipShown"),
+                  (force || !UserDefaults.standard.bool(forKey: "pauseTipShown")),
+                  self.pauseTip?.isShown != true,
                   let button = self.item.button, button.window?.isVisible == true else { return }
             self.showPauseTip(relativeTo: button)
         }
@@ -44,7 +48,7 @@ extension AppDelegate {
         controller.view = view
         let title = NSTextField(labelWithString: "browser paused")
         title.font = .systemFont(ofSize: 14, weight: .semibold)
-        let detail = NSTextField(wrappingLabelWithString: "your agent can't use the browser while paused. choose resume automation from this menu when you're ready.")
+        let detail = NSTextField(wrappingLabelWithString: "the browser is hidden and automation is still paused. choose resume automation from this menu when you're ready.")
         detail.font = .systemFont(ofSize: 13)
         detail.textColor = .secondaryLabelColor
         let done = NSButton(title: "got it", target: self, action: #selector(dismissPauseTip))

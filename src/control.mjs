@@ -5,9 +5,10 @@ export class Control {
   request = null;
   busy = false;
   humanBusy = false;
+  automationPaused = false;
 
   status() {
-    return { mode: this.mode, request: this.request, busy: this.busy };
+    return { mode: this.mode, request: this.request, busy: this.busy, automationPaused: this.automationPaused };
   }
 
   requestHuman(message, pageId) {
@@ -25,7 +26,28 @@ export class Control {
 
   pause() {
     if (this.mode !== 'agent') throw new Error('Browser is already paused or under human control.');
+    this.automationPaused = true;
     this.mode = 'paused';
+    return this.status();
+  }
+
+  setAutomationPaused(paused) {
+    if (typeof paused !== 'boolean') throw new Error('Invalid pause setting.');
+    if (!['agent', 'paused', 'human'].includes(this.mode)) throw new Error('Open the browser before changing automation.');
+    if (this.mode !== 'human' && !paused && this.humanBusy) throw new Error('Finishing a window action. Try again shortly.');
+    this.automationPaused = paused;
+    if (this.mode !== 'human') {
+      if (!paused && this.request && !this.request.outcome) this.request.outcome = 'continued';
+      this.mode = paused ? 'paused' : 'agent';
+    }
+    return this.status();
+  }
+
+  closeViewer() {
+    if (this.mode !== 'human') throw new Error('Open the browser before closing it.');
+    if (this.humanBusy) throw new Error('Finishing a window action. Try again shortly.');
+    if (!this.automationPaused && this.request && !this.request.outcome) this.request.outcome = 'continued';
+    this.mode = this.automationPaused ? 'paused' : 'agent';
     return this.status();
   }
 
@@ -33,6 +55,7 @@ export class Control {
     if (this.humanBusy) throw new Error('Finishing a window action. Try again shortly.');
     if (!['human', 'paused'].includes(this.mode)) throw new Error('Take control before returning the browser.');
     if (this.request && !this.request.outcome) this.request.outcome = 'continued';
+    this.automationPaused = false;
     this.mode = 'agent';
     return this.status();
   }
@@ -40,6 +63,7 @@ export class Control {
   cancel() {
     if (this.mode === 'agent') return this.status();
     if (this.request && !this.request.outcome) this.request.outcome = 'cancelled';
+    this.automationPaused = true;
     this.mode = 'paused';
     return this.status();
   }

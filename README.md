@@ -13,12 +13,14 @@ Choose **show browser** in the menu bar to configure extensions, sign in, or
 inspect the browser. Automation pauses before you get control. The native window
 bar focuses or closes guest Chrome windows, including dialogs. **restore** brings
 windows onto the current guest desktop and maximizes windows that support it.
-**done** returns control to your agent; **hide** or closing the viewer keeps
-it paused. Closing every guest browser window reopens a blank window without
+**automation** sets whether the agent can run after you close the viewer.
+While the viewer is open, automation always stays paused. **done** and the red
+close button both follow that setting; closing with automation off shows a
+menu bar tip explaining how to resume. Closing every guest browser window reopens a blank window without
 restarting the virtual display or MCP service. Saved cookies remain; old page IDs
 expire and the agent must inspect fresh page state.
 
-Use **pause automation** or **resume automation** in the menu bar menu to toggle agent access without opening the browser. The first pause shows a native tip pointing to the menu icon and explaining how to resume.
+Use **pause automation** or **resume automation** in the menu bar menu to toggle agent access without opening the browser. The first pause and closing the viewer with automation off show a native tip pointing to the menu icon and explaining how to resume.
 
 When an agent needs help, it supplies a short instruction and pauses. The globe
 changes to a help indicator. With notifications enabled, clicking the notification

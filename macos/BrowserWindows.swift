@@ -1,5 +1,28 @@
 import AppKit
 
+private final class BrowserHoverButton: NSButton {
+    private var hovered = false
+    private var hoverTracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        if let tracking = hoverTracking { removeTrackingArea(tracking) }
+        let tracking = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
+        addTrackingArea(tracking)
+        hoverTracking = tracking
+        super.updateTrackingAreas()
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
+    override func draw(_ dirtyRect: NSRect) {
+        if isEnabled && (hovered || isHighlighted) {
+            NSColor.labelColor.withAlphaComponent(isHighlighted ? 0.16 : 0.08).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6).fill()
+        }
+        super.draw(dirtyRect)
+    }
+}
+
 private final class BrowserWindowChip: NSStackView {
     var selected = false {
         didSet { if selected != oldValue { needsDisplay = true } }
@@ -70,25 +93,39 @@ extension AppDelegate: NSToolbarDelegate {
             let button: NSButton
             switch identifier {
             case .restoreWindows:
-                button = NSButton(image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "restore windows")!, target: self, action: #selector(restoreBrowserWindows))
+                button = BrowserHoverButton(image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "restore windows")!, target: self, action: #selector(restoreBrowserWindows))
                 button.toolTip = "bring all browser windows back and maximize them"
                 configureBrowserIcon(button)
                 item.label = "restore"
             case .hideBrowser:
-                button = NSButton(image: NSImage(systemSymbolName: "pause", accessibilityDescription: "close & pause")!, target: self, action: #selector(hideBrowser))
-                button.toolTip = "close this window and keep your agent paused"
-                configureBrowserIcon(button)
-                item.label = "close & pause"
+                let toggle = NSSwitch()
+                toggle.target = self
+                toggle.action = #selector(togglePause)
+                toggle.controlSize = .mini
+                toggle.setAccessibilityLabel("automation")
+                let label = NSTextField(labelWithString: "automation")
+                label.font = .systemFont(ofSize: 11, weight: .medium)
+                label.textColor = .secondaryLabelColor
+                let group = NSStackView(views: [label, toggle])
+                group.orientation = .horizontal
+                group.alignment = .centerY
+                group.spacing = 6
+                automationSwitch = toggle
+                updateAutomationControl()
+                item.view = group
+                item.isBordered = false
+                item.label = "automation"
+                return item
             case .returnToAgent:
                 button = NSButton(title: "done", image: NSImage(systemSymbolName: "arrow.right", accessibilityDescription: nil)!, target: self, action: #selector(finish))
-                button.imagePosition = .imageTrailing
+                button.imagePosition = .noImage
                 button.font = .systemFont(ofSize: 12, weight: .medium)
                 button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
-                button.setAccessibilityLabel("done & resume")
+                button.setAccessibilityLabel("done")
                 button.toolTip = "close this window and let your agent use the browser"
                 button.bezelStyle = .rounded
                 button.bezelColor = .controlAccentColor
-                item.label = "done & resume"
+                item.label = "done"
             default: return nil
             }
             item.view = button
@@ -104,6 +141,38 @@ extension AppDelegate: NSToolbarDelegate {
         button.contentTintColor = .secondaryLabelColor
         button.widthAnchor.constraint(equalToConstant: 28).isActive = true
         button.heightAnchor.constraint(equalToConstant: 28).isActive = true
+    }
+
+    func configureAutomationBanner(_ window: NSWindow) {
+        let label = NSTextField(labelWithString: "automation is paused while this window is open")
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = .secondaryLabelColor
+        label.alignment = .center
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 26))
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 16),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16)
+        ])
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.view = view
+        accessory.layoutAttribute = .bottom
+        window.addTitlebarAccessoryViewController(accessory)
+        automationBanner = label
+        updateAutomationControl()
+    }
+
+    func updateAutomationControl() {
+        automationSwitch?.state = automationPaused ? .off : .on
+        automationSwitch?.isEnabled = !pauseChangeRunning
+        automationSwitch?.toolTip = automationPaused ? "automation stays paused after you close this window" : "automation resumes after you close this window"
+        automationBanner?.stringValue = automationPaused ? "automation is paused · stays paused after closing" : "automation is paused while this window is open"
+        if let done = window?.toolbar?.items.first(where: { $0.itemIdentifier == .returnToAgent })?.view as? NSButton {
+            done.toolTip = automationPaused ? "close this window · keep automation paused" : "close this window · resume automation"
+        }
     }
 
     func refreshBrowserWindows() {
@@ -153,7 +222,7 @@ extension AppDelegate: NSToolbarDelegate {
             var title = fullTitle.hasSuffix(" - Chromium") ? String(fullTitle.dropLast(11)) : fullTitle
             if title == "about:blank" { title = "blank tab" }
             else if title == "New Tab" { title = "new tab" }
-            let focus = NSButton(title: title, target: self, action: #selector(focusBrowserWindow(_:)))
+            let focus = BrowserHoverButton(title: title, target: self, action: #selector(focusBrowserWindow(_:)))
             focus.bezelStyle = .inline
             focus.isBordered = false
             focus.setButtonType(.momentaryChange)
@@ -165,7 +234,7 @@ extension AppDelegate: NSToolbarDelegate {
             focus.toolTip = title
             let buttonWidth = ceil(min(180, max(64, (title as NSString).size(withAttributes: [.font: focus.font!]).width + 22)))
             focus.widthAnchor.constraint(equalToConstant: buttonWidth).isActive = true
-            let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "close " + title)!, target: self, action: #selector(closeBrowserWindow(_:)))
+            let close = BrowserHoverButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "close " + title)!, target: self, action: #selector(closeBrowserWindow(_:)))
             close.identifier = NSUserInterfaceItemIdentifier(id + ":" + windowGeneration)
             close.bezelStyle = .inline
             close.isBordered = false

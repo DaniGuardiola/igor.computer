@@ -28,8 +28,10 @@ const controlFile = join(stateDir, 'control.json');
 try {
   const previous = JSON.parse(await readFile(controlFile, 'utf8'));
   control.request = previous.request || null;
+  control.automationPaused = previous.automationPaused === true;
   if (previous.mode !== 'agent') {
     control.mode = 'paused';
+    control.automationPaused = true;
     if (control.request && !control.request.outcome) control.request.outcome = 'cancelled';
   }
 } catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -160,6 +162,8 @@ const server = http.createServer(async (req, res) => {
       return json(res, await control.runHuman(() => browserWindows(args.action, args)));
     }
     if (path === '/take-control') { await requireBrowser(); const status = await changeControl(() => control.takeControl()); return json(res, status); }
+    if (path === '/automation-pause') { const status = await changeControl(() => control.setAutomationPaused(args.paused)); return json(res, status); }
+    if (path === '/close-viewer') { const status = await changeControl(() => { const status = control.closeViewer(); disconnectViewer(); return status; }); return json(res, status); }
     if (path === '/pause') { const status = await changeControl(() => control.pause()); return json(res, status); }
     if (path === '/resume') { const status = await changeControl(() => { const status = control.resume(); disconnectViewer(); return status; }); return json(res, status); }
     if (path === '/cancel') { disconnectViewer(); const status = await changeControl(() => control.cancel()); return json(res, status); }

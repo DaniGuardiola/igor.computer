@@ -26,7 +26,7 @@ test('viewer cannot obtain control before an in-flight command drains', async ()
   assert.equal(control.takeControl().mode, 'human');
 });
 
-test('closing or cancelling never silently resumes automation', async () => {
+test('explicit cancellation never silently resumes automation', async () => {
   const control = new Control();
   control.requestHuman('Complete verification.');
   control.takeControl();
@@ -88,4 +88,49 @@ test('window actions require human ownership and drain before automation resumes
   release();
   await action;
   assert.equal(control.resume().mode, 'agent');
+});
+
+
+test('automation setting is independent of human ownership and closing follows it', async () => {
+  const control = new Control();
+  control.takeControl();
+  control.setAutomationPaused(true);
+  assert.equal(control.mode, 'human');
+  control.setAutomationPaused(false);
+  assert.equal(control.mode, 'human');
+  await assert.rejects(control.run(() => assert.fail('Must not run')), /paused/);
+  assert.equal(control.closeViewer().mode, 'agent');
+  control.pause();
+  control.takeControl();
+  assert.equal(control.automationPaused, true);
+  assert.equal(control.closeViewer().mode, 'paused');
+  control.setAutomationPaused(false);
+  assert.equal(await control.run(() => 42), 42);
+});
+
+test('closing drains human mutations and preserves the pause setting on rejection', async () => {
+  const control = new Control();
+  control.takeControl();
+  let release;
+  const action = control.runHuman(() => new Promise(resolve => { release = resolve; }));
+  control.setAutomationPaused(true);
+  assert.throws(() => control.closeViewer(), /Finishing/);
+  assert.equal(control.mode, 'human');
+  release();
+  await action;
+  assert.equal(control.closeViewer().mode, 'paused');
+});
+
+
+test('closing while paused leaves a human request waiting until automation resumes', () => {
+  const control = new Control();
+  control.requestHuman('Complete verification.');
+  control.takeControl();
+  control.setAutomationPaused(true);
+  control.closeViewer();
+  assert.equal(control.request.outcome, null);
+  assert.equal(control.mode, 'paused');
+  control.setAutomationPaused(false);
+  assert.equal(control.request.outcome, 'continued');
+  assert.equal(control.mode, 'agent');
 });

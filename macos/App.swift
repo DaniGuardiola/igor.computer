@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var pauseTip: NSPopover?
     var statusMenuOpen = false
     var pauseChangeRunning = false
+    var automationPaused = false
+    var automationSwitch: NSSwitch?
+    var automationBanner: NSTextField?
     var window: NSWindow?
     var webView: WKWebView?
     var windowStrip: NSScrollView?
@@ -178,6 +181,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             case .success(let status):
                 let previousMode = self.mode
                 self.mode = status["mode"] as? String ?? "agent"
+                self.automationPaused = status["automationPaused"] as? Bool ?? false
+                self.updateAutomationControl()
                 let runtime = status["runtime"] as? [String: Any] ?? [:]
                 self.runtimeReady = runtime["ready"] as? Bool ?? false
                 self.runtimeIssues = runtime["issues"] as? [String] ?? []
@@ -220,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if mode == "pending" { menu.addItem(withTitle: helpMessage, action: nil, keyEquivalent: "") }
         if !setupComplete { menu.addItem(withTitle: "finish setup…", action: #selector(showSetup), keyEquivalent: "") }
         menu.addItem(.separator())
-        let pause = menu.addItem(withTitle: ["paused", "human"].contains(mode) ? "resume automation" : "pause automation", action: #selector(togglePause), keyEquivalent: "")
+        let pause = menu.addItem(withTitle: automationPaused ? "resume automation" : "pause automation", action: #selector(togglePause), keyEquivalent: "")
         pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human"].contains(mode))
         menu.autoenablesItems = false
         menu.addItem(withTitle: "show browser", action: #selector(showBrowser), keyEquivalent: "")
@@ -275,7 +280,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             self.opening = false
             switch result {
             case .failure(let error): self.runtimeIssues = [error.localizedDescription]; self.showSetup(); self.renderSetup()
-            case .success:
+            case .success(let status):
+                self.automationPaused = status["automationPaused"] as? Bool ?? false
                 self.mode = "human"
                 self.makeWindow()
                 guard let token = self.token else { return }
@@ -333,6 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let view = NSView()
         window.contentView = view
         configureBrowserToolbar(window)
+        configureAutomationBanner(window)
         // Constrain the browser area, not the outer frame including its toolbar.
         let displayRatio = NSSize(width: 1440, height: 1000)
         window.contentAspectRatio = displayRatio
@@ -343,7 +350,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                         max(1, available.height - toolbarHeight) * displayRatio.width / displayRatio.height)
         window.setContentSize(NSSize(width: width, height: width * displayRatio.height / displayRatio.width))
         window.center()
-        window.standardWindowButton(.closeButton)?.toolTip = "close this window and keep your agent paused"
+        window.standardWindowButton(.closeButton)?.toolTip = "close this window · follow the automation setting"
         let web = WKWebView()
         web.navigationDelegate = self
         web.translatesAutoresizingMaskIntoConstraints = false
@@ -358,20 +365,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         self.webView = web
     }
 
-    @objc func finish() {
-        request("/resume", post: true) { result in
-            switch result {
-            case .failure(let error): self.showError(error.localizedDescription)
-            case .success: self.hideWindow(); self.poll()
-            }
-        }
-    }
+    @objc func finish() { closeBrowserViewer() }
+    @objc func hideBrowser() { closeBrowserViewer() }
 
-    @objc func hideBrowser() {
-        request("/cancel", post: true) { result in
+    func closeBrowserViewer() {
+        request("/close-viewer", post: true) { result in
             switch result {
             case .failure(let error): self.showError(error.localizedDescription)
-            case .success: self.hideWindow(); self.poll()
+            case .success(let status):
+                self.mode = status["mode"] as? String ?? self.mode
+                self.automationPaused = status["automationPaused"] as? Bool ?? false
+                self.hideWindow()
+                self.updateMenu()
+                if self.mode == "paused" { self.schedulePauseTip(force: true) }
+                self.poll()
             }
         }
     }
