@@ -37,6 +37,7 @@ extension AppDelegate: NSToolbarDelegate {
             let stack = NSStackView()
             stack.orientation = .horizontal
             stack.spacing = 6
+            stack.distribution = .fill
             stack.alignment = .centerY
             stack.frame = NSRect(x: 0, y: 0, width: 650, height: 28)
             scroll.documentView = stack
@@ -102,8 +103,12 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func renderBrowserWindows(_ windows: [[String: Any]], unavailable: Bool = false) {
-        let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? "", $0["active"] ?? false] }) + String(unavailable) + windowGeneration
-        guard signature != windowListSignature, let stack = windowChips else { return }
+        let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? ""] }) + String(unavailable) + windowGeneration
+        guard let stack = windowChips else { return }
+        if signature == windowListSignature {
+            updateBrowserWindowSelection(windows)
+            return
+        }
         windowListSignature = signature
         for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
         var width: CGFloat = 0
@@ -128,7 +133,7 @@ extension AppDelegate: NSToolbarDelegate {
             focus.lineBreakMode = .byTruncatingTail
             focus.identifier = NSUserInterfaceItemIdentifier(id + ":" + windowGeneration)
             focus.toolTip = title
-            let buttonWidth = min(180, max(64, (title as NSString).size(withAttributes: [.font: focus.font!]).width + 22))
+            let buttonWidth = ceil(min(180, max(64, (title as NSString).size(withAttributes: [.font: focus.font!]).width + 22)))
             focus.widthAnchor.constraint(equalToConstant: buttonWidth).isActive = true
             let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "close " + title)!, target: self, action: #selector(closeBrowserWindow(_:)))
             close.identifier = NSUserInterfaceItemIdentifier(id + ":" + windowGeneration)
@@ -137,12 +142,28 @@ extension AppDelegate: NSToolbarDelegate {
             close.toolTip = "close " + title
             close.widthAnchor.constraint(equalToConstant: 20).isActive = true
             let group = NSStackView(views: [focus, close])
+            group.orientation = .horizontal
+            group.alignment = .centerY
+            group.distribution = .fill
             group.spacing = 1
+            group.widthAnchor.constraint(equalToConstant: buttonWidth + 21).isActive = true
+            group.heightAnchor.constraint(equalToConstant: 28).isActive = true
             stack.addArrangedSubview(group)
-            width += buttonWidth + 21 + 6
+            if width > 0 { width += stack.spacing }
+            width += buttonWidth + 21
         }
         stack.setFrameSize(NSSize(width: max(width, 1), height: 28))
         stack.layoutSubtreeIfNeeded()
+    }
+
+    func updateBrowserWindowSelection(_ windows: [[String: Any]]) {
+        guard let stack = windowChips else { return }
+        let active = Set(windows.filter { $0["active"] as? Bool == true }.compactMap { $0["id"] as? String })
+        for group in stack.arrangedSubviews.compactMap({ $0 as? NSStackView }) {
+            guard let focus = group.arrangedSubviews.first as? NSButton,
+                  let id = focus.identifier?.rawValue.split(separator: ":").first else { continue }
+            focus.state = active.contains(String(id)) ? .on : .off
+        }
     }
 
     @objc func focusBrowserWindow(_ sender: NSButton) { browserWindowButtonAction("focus", sender: sender) }
@@ -165,7 +186,6 @@ extension AppDelegate: NSToolbarDelegate {
                 self.window?.makeFirstResponder(self.webView)
                 self.webView?.evaluateJavaScript("document.querySelector('canvas')?.focus()")
             }
-            self.windowListSignature = ""
             self.refreshBrowserWindows()
         }
     }
