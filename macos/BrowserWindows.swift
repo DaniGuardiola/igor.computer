@@ -1,6 +1,7 @@
 import AppKit
 
 private final class BrowserHoverButton: NSButton {
+    var destructive = false
     private var hovered = false
     private var hoverTracking: NSTrackingArea?
 
@@ -14,9 +15,15 @@ private final class BrowserHoverButton: NSButton {
 
     override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
     override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
+    override func highlight(_ flag: Bool) {
+        super.highlight(flag)
+        if !destructive { (superview as? BrowserWindowChip)?.pressed = flag }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
-        if isEnabled && (hovered || isHighlighted) {
-            NSColor.labelColor.withAlphaComponent(isHighlighted ? 0.16 : 0.08).setFill()
+        if isEnabled && (hovered || isHighlighted) && (destructive || !(superview is BrowserWindowChip)) {
+            let color = destructive ? NSColor.systemRed : NSColor.labelColor
+            color.withAlphaComponent(isHighlighted ? 0.22 : 0.12).setFill()
             NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6).fill()
         }
         super.draw(dirtyRect)
@@ -24,14 +31,31 @@ private final class BrowserHoverButton: NSButton {
 }
 
 private final class BrowserWindowChip: NSStackView {
+    private var hovered = false
+    private var hoverTracking: NSTrackingArea?
+    var pressed = false {
+        didSet { if pressed != oldValue { needsDisplay = true } }
+    }
     var selected = false {
         didSet { if selected != oldValue { needsDisplay = true } }
     }
 
+    override func updateTrackingAreas() {
+        if let tracking = hoverTracking { removeTrackingArea(tracking) }
+        let tracking = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
+        addTrackingArea(tracking)
+        hoverTracking = tracking
+        super.updateTrackingAreas()
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        if selected {
-            NSColor.controlAccentColor.withAlphaComponent(0.16).setFill()
+        if selected || hovered || pressed {
+            let color = selected ? NSColor.controlAccentColor : NSColor.labelColor
+            let opacity: CGFloat = selected ? (pressed ? 0.30 : (hovered ? 0.24 : 0.16)) : (pressed ? 0.14 : 0.08)
+            color.withAlphaComponent(opacity).setFill()
             NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 1), xRadius: 7, yRadius: 7).fill()
         }
     }
@@ -234,25 +258,28 @@ extension AppDelegate: NSToolbarDelegate {
             focus.toolTip = title
             let buttonWidth = ceil(min(180, max(64, (title as NSString).size(withAttributes: [.font: focus.font!]).width + 22)))
             focus.widthAnchor.constraint(equalToConstant: buttonWidth).isActive = true
+            focus.heightAnchor.constraint(equalToConstant: 28).isActive = true
             let close = BrowserHoverButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "close " + title)!, target: self, action: #selector(closeBrowserWindow(_:)))
             close.identifier = NSUserInterfaceItemIdentifier(id + ":" + windowGeneration)
             close.bezelStyle = .inline
             close.isBordered = false
             close.toolTip = "close " + title
-            close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 9, weight: .medium)
-            close.contentTintColor = .secondaryLabelColor
-            close.widthAnchor.constraint(equalToConstant: 20).isActive = true
+            close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+            close.destructive = true
+            close.contentTintColor = .systemRed
+            close.widthAnchor.constraint(equalToConstant: 28).isActive = true
+            close.heightAnchor.constraint(equalToConstant: 28).isActive = true
             let group = BrowserWindowChip(views: [focus, close])
             group.selected = entry["active"] as? Bool == true
             group.orientation = .horizontal
             group.alignment = .centerY
             group.distribution = .fill
             group.spacing = 1
-            group.widthAnchor.constraint(equalToConstant: buttonWidth + 21).isActive = true
+            group.widthAnchor.constraint(equalToConstant: buttonWidth + 29).isActive = true
             group.heightAnchor.constraint(equalToConstant: 28).isActive = true
             stack.addArrangedSubview(group)
             if width > 0 { width += stack.spacing }
-            width += buttonWidth + 21
+            width += buttonWidth + 29
         }
         stack.setFrameSize(NSSize(width: max(width, 1), height: 28))
         stack.layoutSubtreeIfNeeded()
