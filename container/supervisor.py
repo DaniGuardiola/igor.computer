@@ -44,7 +44,7 @@ try:
     browser_args = ['chromium', '--user-data-dir=/profile',
                      '--remote-debugging-port=9223', '--no-first-run',
                      '--no-default-browser-check', '--window-size=1440,1000',
-                     '--disable-setuid-sandbox', 'about:blank']
+                     'about:blank']
     def launch_browser(restore=False):
         process = start(browser_args[:-1] + (["--restore-last-session"] if restore else ["about:blank"]))
         with open('/tmp/igor-browser-generation.tmp', 'w') as file:
