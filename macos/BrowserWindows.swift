@@ -2,6 +2,8 @@ import AppKit
 
 private final class BrowserHoverButton: NSButton {
     var destructive = false
+    var feedbackColor = NSColor.labelColor
+    var restingColor: NSColor?
     private var hovered = false
     private var hoverTracking: NSTrackingArea?
 
@@ -30,10 +32,16 @@ private final class BrowserHoverButton: NSButton {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if isEnabled && (hovered || isHighlighted) && (destructive || !(superview is BrowserWindowChip)) {
-            let color = destructive ? NSColor.systemRed : NSColor.labelColor
-            color.withAlphaComponent(destructive ? (isHighlighted ? 0.65 : 0.85) : (isHighlighted ? 0.22 : 0.12)).setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6).fill()
+        let interactive = isEnabled && (hovered || isHighlighted)
+        if let color = restingColor, !interactive {
+            color.withAlphaComponent(0.12).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 7, yRadius: 7).fill()
+        }
+        if interactive && (destructive || !(superview is BrowserWindowChip)) {
+            let color = destructive ? NSColor.systemRed : feedbackColor
+            let opacity: CGFloat = destructive ? (isHighlighted ? 0.65 : 0.85) : (restingColor != nil ? (isHighlighted ? 0.30 : 0.20) : (isHighlighted ? 0.22 : 0.12))
+            color.withAlphaComponent(opacity).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 7, yRadius: 7).fill()
         }
         super.draw(dirtyRect)
     }
@@ -142,7 +150,7 @@ extension AppDelegate: NSToolbarDelegate {
                 let group = NSStackView(views: [label, toggle])
                 group.orientation = .horizontal
                 group.alignment = .centerY
-                group.spacing = 6
+                group.spacing = 5
                 automationSwitch = toggle
                 updateAutomationControl()
                 item.view = group
@@ -150,14 +158,20 @@ extension AppDelegate: NSToolbarDelegate {
                 item.label = "automation"
                 return item
             case .returnToAgent:
-                button = NSButton(title: "done", image: NSImage(systemSymbolName: "arrow.right", accessibilityDescription: nil)!, target: self, action: #selector(finish))
-                button.imagePosition = .noImage
+                let done = BrowserHoverButton(title: "done", image: NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)!, target: self, action: #selector(finish))
+                done.feedbackColor = .systemGreen
+                done.restingColor = .systemGreen
+                done.contentTintColor = .systemGreen
+                done.isBordered = false
+                done.widthAnchor.constraint(equalToConstant: 78).isActive = true
+                done.heightAnchor.constraint(equalToConstant: 28).isActive = true
+                button = done
+                button.imagePosition = .imageLeading
                 button.font = .systemFont(ofSize: 12, weight: .medium)
                 button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
                 button.setAccessibilityLabel("done")
                 button.toolTip = "close this window and let your agent use the browser"
-                button.bezelStyle = .rounded
-                button.bezelColor = .controlAccentColor
+                button.bezelStyle = .inline
                 item.label = "done"
             default: return nil
             }
