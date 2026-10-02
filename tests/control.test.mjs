@@ -52,3 +52,25 @@ test('a later manual show cannot change a cancelled request into permission to r
   control.resume();
   assert.equal(control.request.outcome, 'cancelled');
 });
+
+
+test('menu pause blocks new commands while an in-flight command finishes; resume restores automation', async () => {
+  const control = new Control();
+  let release;
+  const running = control.run(() => new Promise(resolve => { release = resolve; }));
+  assert.equal(control.pause().mode, 'paused');
+  await assert.rejects(control.run(() => assert.fail('Must not run')), /paused/);
+  release('finished');
+  assert.equal(await running, 'finished');
+  assert.equal(control.mode, 'paused');
+  assert.equal(control.resume().mode, 'agent');
+  assert.equal(await control.run(() => 'resumed'), 'resumed');
+});
+
+test('menu pause cannot cancel a pending human request', () => {
+  const control = new Control();
+  const request = control.requestHuman('Finish signing in.').request;
+  assert.throws(() => control.pause(), /already paused/);
+  assert.equal(control.mode, 'pending');
+  assert.equal(request.outcome, null);
+});

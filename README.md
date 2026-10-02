@@ -14,6 +14,8 @@ inspect the browser. Automation pauses before you get control. **Done — Return
 to Agent** hides the window and resumes automation. **Hide — Keep Paused** or
 closing the window leaves automation paused.
 
+Use **pause automation** or **resume automation** in the menu bar menu to toggle agent access without opening the browser. The first pause shows a native tip pointing to the menu icon and explaining how to resume.
+
 When an agent needs help, it supplies a short instruction and pauses. The globe
 changes to a help indicator. With notifications enabled, clicking the notification
 opens the same browser. No browser relaunch, profile transfer, or page reload.

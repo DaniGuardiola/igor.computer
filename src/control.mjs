@@ -22,6 +22,12 @@ export class Control {
     return this.status();
   }
 
+  pause() {
+    if (this.mode !== 'agent') throw new Error('Browser is already paused or under human control.');
+    this.mode = 'paused';
+    return this.status();
+  }
+
   resume() {
     if (!['human', 'paused'].includes(this.mode)) throw new Error('Take control before returning the browser.');
     if (this.request && !this.request.outcome) this.request.outcome = 'continued';

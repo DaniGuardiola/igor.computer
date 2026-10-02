@@ -4,8 +4,11 @@ import UserNotifications
 import ServiceManagement
 import Sparkle
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, UNUserNotificationCenterDelegate, NSMenuDelegate {
     var item: NSStatusItem!
+    var pauseTip: NSPopover?
+    var statusMenuOpen = false
+    var pauseChangeRunning = false
     var window: NSWindow?
     var webView: WKWebView?
     var timer: Timer?
@@ -197,12 +200,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func updateMenu() {
+        if mode != "paused" { pauseTip?.close() }
         let menu = NSMenu()
+        menu.delegate = self
         let state = (!runtimeReady && mode != "starting") ? "browser unavailable" : (["agent": "browser ready", "pending": "your help is needed", "human": "you have control", "paused": "browser paused", "starting": "starting browser…"][mode] ?? mode)
         menu.addItem(withTitle: state, action: nil, keyEquivalent: "")
         if mode == "pending" { menu.addItem(withTitle: helpMessage, action: nil, keyEquivalent: "") }
         if !setupComplete { menu.addItem(withTitle: "finish setup…", action: #selector(showSetup), keyEquivalent: "") }
         menu.addItem(.separator())
+        let pause = menu.addItem(withTitle: ["paused", "human"].contains(mode) ? "resume automation" : "pause automation", action: #selector(togglePause), keyEquivalent: "")
+        pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human"].contains(mode))
+        menu.autoenablesItems = false
         menu.addItem(withTitle: "show browser", action: #selector(showBrowser), keyEquivalent: "")
         menu.addItem(withTitle: "settings…", action: #selector(showSetup), keyEquivalent: ",")
         if let updater = updater {
@@ -212,9 +220,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         menu.addItem(.separator())
         menu.addItem(withTitle: "quit igor browser", action: #selector(quit), keyEquivalent: "q")
         for entry in menu.items where entry.action != nil && entry.target == nil { entry.target = self }
-        item.menu = menu
-        item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (setupComplete ? "globe" : "exclamationmark.circle"), accessibilityDescription: state)
+        for entry in menu.items where entry.action == nil { entry.isEnabled = false }
+        if !statusMenuOpen && pauseTip?.isShown != true { item.menu = menu }
+        item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (mode == "paused" ? "pause.circle" : (setupComplete ? "globe" : "exclamationmark.circle")), accessibilityDescription: state)
         item.button?.toolTip = setupComplete ? state : "igor browser needs setup"
+        if mode != "paused" { pauseTip?.close() }
+        else { schedulePauseTip() }
     }
 
     @objc func enableNotifications() {

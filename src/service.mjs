@@ -151,6 +151,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, { ...status, ...await getStatus() });
     }
     if (path === '/take-control') { await requireBrowser(); const status = await changeControl(() => control.takeControl()); return json(res, status); }
+    if (path === '/pause') { const status = await changeControl(() => control.pause()); return json(res, status); }
     if (path === '/resume') { disconnectViewer(); const status = await changeControl(() => control.resume()); return json(res, status); }
     if (path === '/cancel') { disconnectViewer(); const status = await changeControl(() => control.cancel()); return json(res, status); }
     if (path === '/shutdown') { json(res, { ok: true }); setImmediate(close); return; }
