@@ -13,17 +13,26 @@ private final class BrowserHoverButton: NSButton {
         super.updateTrackingAreas()
     }
 
-    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
-    override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
+    override func mouseEntered(with event: NSEvent) {
+        hovered = true
+        if destructive { contentTintColor = .white }
+        needsDisplay = true
+    }
+    override func mouseExited(with event: NSEvent) {
+        hovered = false
+        if destructive { contentTintColor = isHighlighted ? .white : .secondaryLabelColor }
+        needsDisplay = true
+    }
     override func highlight(_ flag: Bool) {
         super.highlight(flag)
+        if destructive { contentTintColor = (hovered || flag) ? .white : .secondaryLabelColor }
         if !destructive { (superview as? BrowserWindowChip)?.pressed = flag }
     }
 
     override func draw(_ dirtyRect: NSRect) {
         if isEnabled && (hovered || isHighlighted) && (destructive || !(superview is BrowserWindowChip)) {
             let color = destructive ? NSColor.systemRed : NSColor.labelColor
-            color.withAlphaComponent(isHighlighted ? 0.22 : 0.12).setFill()
+            color.withAlphaComponent(destructive ? (isHighlighted ? 0.65 : 0.85) : (isHighlighted ? 0.22 : 0.12)).setFill()
             NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6).fill()
         }
         super.draw(dirtyRect)
@@ -266,7 +275,7 @@ extension AppDelegate: NSToolbarDelegate {
             close.toolTip = "close " + title
             close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
             close.destructive = true
-            close.contentTintColor = .systemRed
+            close.contentTintColor = .secondaryLabelColor
             close.widthAnchor.constraint(equalToConstant: 28).isActive = true
             close.heightAnchor.constraint(equalToConstant: 28).isActive = true
             let group = BrowserWindowChip(views: [focus, close])
