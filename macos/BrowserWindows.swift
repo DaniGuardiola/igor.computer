@@ -4,6 +4,7 @@ private final class BrowserHoverButton: NSButton {
     var destructive = false
     var feedbackColor = NSColor.labelColor
     var restingColor: NSColor?
+    var showsCompletionMark = false
     private var hovered = false
     private var hoverTracking: NSTrackingArea?
 
@@ -46,7 +47,31 @@ private final class BrowserHoverButton: NSButton {
             let inset: CGFloat = destructive ? 3 : 1
             NSBezierPath(roundedRect: bounds.insetBy(dx: inset, dy: inset), xRadius: 6, yRadius: 6).fill()
         }
-        super.draw(dirtyRect)
+        if showsCompletionMark {
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font ?? NSFont.systemFont(ofSize: 12, weight: .medium),
+                .foregroundColor: contentTintColor ?? NSColor.labelColor
+            ]
+            let textSize = (title as NSString).size(withAttributes: attributes)
+            let markWidth: CGFloat = 10
+            let gap: CGFloat = 6
+            let left = (bounds.width - markWidth - gap - textSize.width) / 2
+            let bottom = bounds.midY - 5
+            let markY: (CGFloat) -> CGFloat = { self.isFlipped ? self.bounds.midY + 5 - $0 : bottom + $0 }
+            let mark = NSBezierPath()
+            mark.move(to: NSPoint(x: left, y: markY(4)))
+            mark.line(to: NSPoint(x: left + 3.5, y: markY(1)))
+            mark.line(to: NSPoint(x: left + markWidth, y: markY(9)))
+            mark.lineWidth = 1.5
+            mark.lineCapStyle = .round
+            mark.lineJoinStyle = .round
+            (contentTintColor ?? .labelColor).setStroke()
+            mark.stroke()
+            (title as NSString).draw(in: NSRect(x: left + markWidth + gap, y: bounds.midY - textSize.height / 2,
+                                               width: textSize.width, height: textSize.height), withAttributes: attributes)
+        } else {
+            super.draw(dirtyRect)
+        }
     }
 }
 
@@ -161,7 +186,8 @@ extension AppDelegate: NSToolbarDelegate {
                 item.label = "automation"
                 return item
             case .returnToAgent:
-                let done = BrowserHoverButton(title: "done", image: NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)!, target: self, action: #selector(finish))
+                let done = BrowserHoverButton(title: "done", target: self, action: #selector(finish))
+                done.showsCompletionMark = true
                 done.feedbackColor = .systemGreen
                 done.restingColor = .systemGreen
                 done.contentTintColor = .systemGreen
@@ -169,8 +195,6 @@ extension AppDelegate: NSToolbarDelegate {
                 done.widthAnchor.constraint(equalToConstant: 78).isActive = true
                 done.heightAnchor.constraint(equalToConstant: 28).isActive = true
                 button = done
-                button.imagePosition = .imageLeading
-                button.imageHugsTitle = true
                 button.font = .systemFont(ofSize: 12, weight: .medium)
                 button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
                 button.setAccessibilityLabel("done")
