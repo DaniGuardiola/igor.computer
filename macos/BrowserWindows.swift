@@ -1,5 +1,19 @@
 import AppKit
 
+private final class BrowserWindowChip: NSStackView {
+    var selected = false {
+        didSet { if selected != oldValue { needsDisplay = true } }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if selected {
+            NSColor.controlAccentColor.withAlphaComponent(0.16).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 1), xRadius: 7, yRadius: 7).fill()
+        }
+    }
+}
+
 private extension NSToolbarItem.Identifier {
     static let browserWindows = Self("browserWindows")
     static let restoreWindows = Self("restoreWindows")
@@ -36,7 +50,7 @@ extension AppDelegate: NSToolbarDelegate {
             scroll.autohidesScrollers = true
             let stack = NSStackView()
             stack.orientation = .horizontal
-            stack.spacing = 6
+            stack.spacing = 4
             stack.distribution = .fill
             stack.alignment = .centerY
             stack.frame = NSRect(x: 0, y: 0, width: 650, height: 28)
@@ -56,18 +70,21 @@ extension AppDelegate: NSToolbarDelegate {
             let button: NSButton
             switch identifier {
             case .restoreWindows:
-                button = NSButton(title: "restore", image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)!, target: self, action: #selector(restoreBrowserWindows))
-                button.imagePosition = .imageLeading
+                button = NSButton(image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "restore windows")!, target: self, action: #selector(restoreBrowserWindows))
                 button.toolTip = "bring all browser windows back and maximize them"
-                button.bezelStyle = .texturedRounded
+                configureBrowserIcon(button)
                 item.label = "restore"
             case .hideBrowser:
-                button = NSButton(title: "close & pause", target: self, action: #selector(hideBrowser))
+                button = NSButton(image: NSImage(systemSymbolName: "pause", accessibilityDescription: "close & pause")!, target: self, action: #selector(hideBrowser))
                 button.toolTip = "close this window and keep your agent paused"
-                button.bezelStyle = .texturedRounded
+                configureBrowserIcon(button)
                 item.label = "close & pause"
             case .returnToAgent:
-                button = NSButton(title: "done & resume", target: self, action: #selector(finish))
+                button = NSButton(title: "done", image: NSImage(systemSymbolName: "arrow.right", accessibilityDescription: nil)!, target: self, action: #selector(finish))
+                button.imagePosition = .imageTrailing
+                button.font = .systemFont(ofSize: 12, weight: .medium)
+                button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
+                button.setAccessibilityLabel("done & resume")
                 button.toolTip = "close this window and let your agent use the browser"
                 button.bezelStyle = .rounded
                 button.bezelColor = .controlAccentColor
@@ -75,8 +92,18 @@ extension AppDelegate: NSToolbarDelegate {
             default: return nil
             }
             item.view = button
+            item.isBordered = false
         }
         return item
+    }
+
+    private func configureBrowserIcon(_ button: NSButton) {
+        button.bezelStyle = .inline
+        button.isBordered = false
+        button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+        button.contentTintColor = .secondaryLabelColor
+        button.widthAnchor.constraint(equalToConstant: 28).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 28).isActive = true
     }
 
     func refreshBrowserWindows() {
@@ -127,10 +154,12 @@ extension AppDelegate: NSToolbarDelegate {
             if title == "about:blank" { title = "blank tab" }
             else if title == "New Tab" { title = "new tab" }
             let focus = NSButton(title: title, target: self, action: #selector(focusBrowserWindow(_:)))
-            focus.bezelStyle = .rounded
-            focus.setButtonType(.pushOnPushOff)
+            focus.bezelStyle = .inline
+            focus.isBordered = false
+            focus.setButtonType(.momentaryChange)
             focus.state = entry["active"] as? Bool == true ? .on : .off
-            focus.font = .systemFont(ofSize: 12)
+            focus.font = .systemFont(ofSize: 12, weight: .medium)
+            focus.contentTintColor = .labelColor
             focus.lineBreakMode = .byTruncatingTail
             focus.identifier = NSUserInterfaceItemIdentifier(id + ":" + windowGeneration)
             focus.toolTip = title
@@ -141,8 +170,11 @@ extension AppDelegate: NSToolbarDelegate {
             close.bezelStyle = .inline
             close.isBordered = false
             close.toolTip = "close " + title
+            close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 9, weight: .medium)
+            close.contentTintColor = .secondaryLabelColor
             close.widthAnchor.constraint(equalToConstant: 20).isActive = true
-            let group = NSStackView(views: [focus, close])
+            let group = BrowserWindowChip(views: [focus, close])
+            group.selected = entry["active"] as? Bool == true
             group.orientation = .horizontal
             group.alignment = .centerY
             group.distribution = .fill
@@ -163,7 +195,9 @@ extension AppDelegate: NSToolbarDelegate {
         for group in stack.arrangedSubviews.compactMap({ $0 as? NSStackView }) {
             guard let focus = group.arrangedSubviews.first as? NSButton,
                   let id = focus.identifier?.rawValue.split(separator: ":").first else { continue }
-            focus.state = active.contains(String(id)) ? .on : .off
+            let selected = active.contains(String(id))
+            focus.state = selected ? .on : .off
+            (group as? BrowserWindowChip)?.selected = selected
         }
     }
 
