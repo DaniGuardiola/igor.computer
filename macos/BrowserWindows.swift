@@ -143,6 +143,8 @@ extension AppDelegate: NSToolbarDelegate {
             group.alignment = .centerY
             group.distribution = .fill
             group.spacing = 10
+            // The reset glyph sits inside a wider hit target; compensate visually.
+            if let reset = views.first { group.setCustomSpacing(4, after: reset) }
             group.heightAnchor.constraint(equalToConstant: 28).isActive = true
             item.view = group
             item.isBordered = false
