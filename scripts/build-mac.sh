@@ -5,7 +5,7 @@ bash scripts/fetch-sparkle.sh
 bash scripts/fetch-node.sh
 project_dir="$PWD"
 node_binary="$PWD/.deps/node/bin/node"
-app_dir="$project_dir/build/Igor Browser.app"
+app_dir="$project_dir/build/Igor VM.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources" "$app_dir/Contents/Frameworks"
 swiftc -target arm64-apple-macosx13.0 -swift-version 5 -O -module-cache-path build/module-cache \
   macos/App.swift macos/BrowserWindows.swift macos/Pause.swift macos/WindowMode.swift macos/Setup.swift macos/SettingsGuide.swift macos/GuideView.swift macos/GuideTarget.swift macos/NotificationSetup.swift macos/SettingsReturn.swift macos/Vendor/SettingsWindowTracker.swift \
@@ -18,16 +18,22 @@ ditto src "$runtime_dir/src"
 ditto node_modules "$runtime_dir/node_modules"
 ditto container "$runtime_dir/container"
 cp "$node_binary" "$runtime_dir/bin/node"
-cp scripts/start-browser.sh scripts/build-browser.sh "$runtime_dir/scripts/"
-cp scripts/run-service.sh "$app_dir/Contents/Resources/run-service.sh"
+ditto scripts "$runtime_dir/scripts"
+ditto vm "$runtime_dir/vm"
+python3 - "$runtime_dir" <<'VERSION'
+import json, os, pathlib, sys
+value={'version': json.loads(pathlib.Path('package.json').read_text())['version'], 'build': int(os.environ.get('IGOR_BUILD_NUMBER','3'))}
+(pathlib.Path(sys.argv[1])/'server-version.json').write_text(json.dumps(value))
+VERSION
+cp scripts/ensure-service.sh "$app_dir/Contents/Resources/ensure-service.sh"
 ditto .deps/sparkle/Sparkle.framework "$app_dir/Contents/Frameworks/Sparkle.framework"
 cp .deps/node/LICENSE "$app_dir/Contents/Resources/Node-LICENSE"
 cp .deps/sparkle/LICENSE "$app_dir/Contents/Resources/Sparkle-LICENSE"
 cp macos/Vendor/PermissionFlow-LICENSE "$app_dir/Contents/Resources/"
 python3 - "$app_dir" <<'PLIST'
 import os, plistlib, sys
-info = dict(CFBundleExecutable='IgorBrowser', CFBundleIdentifier='ai.igor.browser', CFBundleName='Igor Browser',
-    CFBundleVersion=os.environ.get('IGOR_BUILD_NUMBER', '2'), CFBundleShortVersionString='0.1.1', LSUIElement=True,
+info = dict(CFBundleExecutable='IgorBrowser', CFBundleIdentifier='ai.igor.browser', CFBundleName='Igor VM',
+    CFBundleVersion=os.environ.get('IGOR_BUILD_NUMBER', '3'), CFBundleShortVersionString='0.2.0', LSUIElement=True,
     LSMinimumSystemVersion='13.0', NSAppTransportSecurity=dict(NSAllowsLocalNetworking=True, NSAllowsArbitraryLoadsInWebContent=True))
 feed, key = os.environ.get('IGOR_UPDATE_FEED'), os.environ.get('IGOR_UPDATE_PUBLIC_KEY')
 if bool(feed) != bool(key): raise SystemExit('Set both IGOR_UPDATE_FEED and IGOR_UPDATE_PUBLIC_KEY for update-enabled builds.')

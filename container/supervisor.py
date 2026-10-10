@@ -3,6 +3,7 @@ import signal
 import subprocess
 import time
 import uuid
+import secrets
 import json
 import urllib.request
 import urllib.error
@@ -37,9 +38,28 @@ try:
     else:
         raise RuntimeError('Virtual display failed to start')
     start(['openbox'])
+    # Restore workspace count before clients place windows.
+    state = '/workspace/.igor/workspaces.json'
+    if os.path.exists(state):
+        for _ in range(50):
+            try:
+                with open(state) as file:
+                    count = max(json.load(file).values()) + 1
+                subprocess.check_call(['wmctrl', '-n', str(count)])
+                break
+            except subprocess.SubprocessError:
+                time.sleep(0.1)
     start(['x11vnc', '-display', ':99', '-localhost', '-nopw', '-forever',
            '-shared', '-rfbport', '5900', '-quiet'])
-    start(['websockify', '--web=/usr/share/novnc', '6080', 'localhost:5900'])
+    # Web pages in Chromium must not be able to open an unauthenticated desktop
+    # connection through guest localhost. Only the trusted host proxy knows this.
+    display_credentials = 'igor-vm:' + secrets.token_urlsafe(32)
+    descriptor = os.open('/tmp/igor-vm-display-auth', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, 'w') as file:
+        file.write(display_credentials)
+    start(['websockify', '--web=/usr/share/novnc', '--web-auth',
+           '--auth-plugin=BasicHTTPAuth', '--auth-source=' + display_credentials,
+           '6080', 'localhost:5900'])
     start(['socat', 'TCP-LISTEN:9222,fork,reuseaddr', 'TCP:127.0.0.1:9223'])
     browser_args = ['chromium', '--user-data-dir=/profile',
                      '--remote-debugging-port=9223', '--no-first-run',

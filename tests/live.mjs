@@ -28,7 +28,7 @@ try {
   for (const name of ['new_page', 'take_snapshot', 'browser_request_human', 'browser_wait_human']) {
     assert.ok(tools.some(tool => tool.name === name), name);
   }
-  const page = await client.callTool({ name: 'new_page', arguments: { url: 'http://127.0.0.1:8080/', background: true } });
+  const page = await client.callTool({ name: 'new_page', arguments: { url: 'http://127.0.0.1:19080/', background: true } });
   assert.ok(!page.isError, JSON.stringify(page));
   const text = page.content.find(c => c.type === 'text').text;
   const pageId = Number(text.match(/(\d+):.*\[selected\]/)?.[1]);

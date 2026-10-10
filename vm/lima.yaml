@@ -1,0 +1,48 @@
+minimumLimaVersion: 2.0.0
+base:
+- template:_images/debian-12
+vmType: qemu
+cpus: 2
+memory: 3GiB
+disk: 30GiB
+mounts: []
+containerd:
+  system: false
+  user: false
+ssh:
+  forwardAgent: false
+video:
+  display: none
+provision:
+- mode: system
+  script: |
+    #!/bin/sh
+    set -eu
+    if ! command -v docker >/dev/null; then
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io
+    fi
+    systemctl enable --now docker
+    usermod -aG docker "{{.User}}"
+    mkdir -p /etc/systemd/system/docker.service.d
+    printf '[Service]\nExecStartPost=/bin/chown {{.User}} /var/run/docker.sock\n' > /etc/systemd/system/docker.service.d/igor.conf
+    systemctl daemon-reload
+    chown "{{.User}}" /var/run/docker.sock
+probes:
+- script: |
+    #!/bin/sh
+    sudo docker info >/dev/null
+portForwards:
+- guestSocket: /var/run/docker.sock
+  hostSocket: "{{.Dir}}/sock/docker.sock"
+- guestPort: 18422
+  hostPort: 18422
+  hostIP: 127.0.0.1
+  static: true
+- guestPort: 18423
+  hostPort: 18423
+  hostIP: 127.0.0.1
+  static: true
+- guestPortRange: [1, 65535]
+  proto: any
+  ignore: true

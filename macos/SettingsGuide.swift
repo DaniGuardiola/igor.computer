@@ -31,7 +31,7 @@ final class SettingsGuide: NSObject, NSWindowDelegate {
         self.onComplete = onComplete
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 330, height: 132), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
-        panel.title = "igor browser"
+        panel.title = "igor vm"
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false

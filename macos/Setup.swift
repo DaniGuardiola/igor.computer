@@ -63,7 +63,7 @@ extension AppDelegate {
 
     func makeSetupWindow() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440), styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = "igor browser"
+        window.title = "igor vm"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -83,9 +83,9 @@ extension AppDelegate {
         globe.contentTintColor = .controlAccentColor
         globe.symbolConfiguration = .init(pointSize: 32, weight: .regular)
         globe.widthAnchor.constraint(equalToConstant: 42).isActive = true
-        let title = NSTextField(labelWithString: "igor browser")
+        let title = NSTextField(labelWithString: "igor vm")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
-        let subtitle = NSTextField(wrappingLabelWithString: "a browser for your agent.")
+        let subtitle = NSTextField(wrappingLabelWithString: "a computer for your agent.")
         subtitle.font = .systemFont(ofSize: 13)
         subtitle.textColor = .secondaryLabelColor
         let headerText = NSStackView(views: [title, subtitle])
@@ -101,7 +101,7 @@ extension AppDelegate {
         card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
         let rows: [(String, String, Selector)] = [
             ("install", "applications", #selector(openApplications)),
-            ("runtime", "browser", #selector(retryRuntime)),
+            ("runtime", "computer", #selector(retryRuntime)),
             ("notifications", "help notifications", #selector(enableNotifications)),
             ("login", "start at login", #selector(toggleLogin))
         ]
@@ -194,11 +194,11 @@ extension AppDelegate {
             updateWindowMode()
         }
         wasSetupComplete = setupComplete
-        let hasRuntime = FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/colima") && FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker")
-        setupLabels["install"]?.stringValue = installedCorrectly ? "installed in applications." : "move igor browser to applications, then open it there."
+        let hasRuntime = origin != "http://127.0.0.1:18420" || FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/limactl") && FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") && FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/qemu-system-aarch64")
+        setupLabels["install"]?.stringValue = installedCorrectly ? "installed in applications." : "move igor vm to applications, then open it there."
         setupButtons["install"]?.isHidden = installedCorrectly
         setupButtons["install"]?.title = "applications"
-        setupLabels["runtime"]?.stringValue = startupError ?? runtimeIssues.first ?? (runtimeReady ? "browser and display are ready." : "starting the private browser. first setup may take a few minutes.")
+        setupLabels["runtime"]?.stringValue = startupError ?? runtimeIssues.first ?? (runtimeReady ? "computer is ready." : "starting the computer. first setup may take a few minutes.")
         setupButtons["runtime"]?.title = hasRuntime ? "retry" : "install runtime"
         setupButtons["runtime"]?.isHidden = runtimeReady && runtimeIssues.isEmpty && startupError == nil
         setupButtons["runtime"]?.isEnabled = worker?.isRunning != true || mode != "starting"
@@ -206,10 +206,10 @@ extension AppDelegate {
         setupButtons["notifications"]?.title = notificationReady || notificationDetermined ? "open settings" : "allow"
         switch SMAppService.mainApp.status {
         case .enabled:
-            setupLabels["login"]?.stringValue = "enabled. your browser will be available after login."
+            setupLabels["login"]?.stringValue = "enabled. human help will be available after login."
             setupButtons["login"]?.title = "turn off"
         case .requiresApproval:
-            setupLabels["login"]?.stringValue = "approve igor browser in login items in system settings."
+            setupLabels["login"]?.stringValue = "approve igor vm in login items in system settings."
             setupButtons["login"]?.title = "open settings"
         default:
             setupLabels["login"]?.stringValue = "off · open the app manually after login"
@@ -232,7 +232,7 @@ extension AppDelegate {
             setupLabels["notifications"]?.stringValue = notificationReady ? (notificationGuideStep == .ready ? "allowed · recommendations enabled" : "allowed · optional settings available") : notificationGuideStep.instruction
         }
         if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "available whenever you log in" }
-        setupDescription?.stringValue = "a browser for your agent."
+        setupDescription?.stringValue = "a computer for your agent."
         setupSummary?.isHidden = setupComplete
         setupSummary?.stringValue = mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar."
         setupPrimary?.isEnabled = runtimeReady
@@ -258,11 +258,11 @@ extension AppDelegate {
     }
     @objc func openApplications() { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications")) }
     @objc func openLog() {
-        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor Browser/service.log"))
+        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor VM/server.log"))
     }
     @objc func retryRuntime() {
         guard worker?.isRunning != true || mode != "starting" else { return }
-        if !FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/colima") || !FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") {
+        if origin == "http://127.0.0.1:18420" && (!FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/limactl") || !FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") || !FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/qemu-system-aarch64")) {
             let brew = "/opt/homebrew/bin/brew"
             guard FileManager.default.isExecutableFile(atPath: brew) else {
                 NSWorkspace.shared.open(URL(string: "https://brew.sh")!)
@@ -271,11 +271,11 @@ extension AppDelegate {
             }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: brew)
-            process.arguments = ["install", "colima", "docker"]
+            process.arguments = ["install", "lima", "qemu", "docker"]
             process.environment = ProcessInfo.processInfo.environment.merging(["PATH": "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin", "HOMEBREW_NO_AUTO_UPDATE": "1"]) { _, new in new }
-            let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor Browser")
+            let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor VM")
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let log = directory.appendingPathComponent("service.log")
+            let log = directory.appendingPathComponent("server.log")
             if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
             let handle = try? FileHandle(forWritingTo: log); handle?.seekToEndOfFile()
             process.standardOutput = handle; process.standardError = handle
