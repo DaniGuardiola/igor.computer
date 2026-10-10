@@ -10,8 +10,9 @@ The macOS app and authenticated web viewer are clients of the same server.
 Quitting either client does not stop the server or VM.
 
 The agent's conversation, orchestration and task state belong outside this
-computer. Igor integration remains deferred; its existing browser options are
-unchanged. This project can connect to any MCP client.
+computer. Igor connects through `@igor.ai/extension-vm`, with Lightpanda first,
+Igor VM second, and My browser last. The server also connects to any other MCP
+client; it does not depend on Igor.
 
 ## Install
 
