@@ -1,9 +1,9 @@
 {
-  "name": "igor-browser",
-  "version": "0.1.1",
+  "name": "igor-vm",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "A persistent headed browser in a private VM, with native macOS human takeover and MCP.",
+  "description": "A persistent agent computer server with headed Chromium, RAM snapshots, desktop tools and human takeover.",
   "scripts": {
     "start": "node src/service.mjs",
     "mcp": "node src/mcp.mjs",
@@ -12,7 +12,10 @@
     "vm:build": "bash scripts/build-browser.sh",
     "vm:start": "bash scripts/start-browser.sh",
     "package:dmg": "bash scripts/package-dmg.sh",
-    "test:mac": "bash scripts/test-mac.sh"
+    "test:mac": "bash scripts/test-mac.sh",
+    "server:install": "bash scripts/install-server.sh",
+    "vm:boot": "bash scripts/start-vm.sh",
+    "test:vm": "node tests/vm-live.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",
@@ -21,5 +24,8 @@
   },
   "igor": {
     "extension": "./igor.extension.json"
+  },
+  "devDependencies": {
+    "ws": "8.22.0"
   }
 }

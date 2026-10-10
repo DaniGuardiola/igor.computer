@@ -76,18 +76,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let path = Bundle.main.bundlePath
         return (path.hasPrefix("/Applications/") || path.hasPrefix(FileManager.default.homeDirectoryForCurrentUser.path + "/Applications/")) && FileManager.default.isWritableFile(atPath: path)
     }
-    let origin = "http://127.0.0.1:18420"
+    var origin: String { UserDefaults.standard.string(forKey: "serverOrigin") ?? "http://127.0.0.1:18420" }
     var token: String? {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Igor Browser/token")
+        let path = UserDefaults.standard.string(forKey: "serverTokenFile") ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Igor Browser/token").path
+        let url = URL(fileURLWithPath: path)
         return try? String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let index = CommandLine.arguments.firstIndex(of: "--server"), index + 1 < CommandLine.arguments.count {
+            let value = CommandLine.arguments[index + 1]
+            if let url = URL(string: value), url.scheme == "https" || url.host == "127.0.0.1" { UserDefaults.standard.set(value, forKey: "serverOrigin") }
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--token-file"), index + 1 < CommandLine.arguments.count { UserDefaults.standard.set(CommandLine.arguments[index + 1], forKey: "serverTokenFile") }
         NSApp.setActivationPolicy(.accessory)
         makeApplicationMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "igor browser")
+        item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "igor vm")
         UNUserNotificationCenter.current().delegate = self
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
         if Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") is String,
@@ -96,9 +101,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
         refreshSetup()
         updateMenu()
+        if CommandLine.arguments.contains("--migrate-login") && SMAppService.mainApp.status == .enabled {
+            // Refresh the registered path after renaming the installed app.
+            do { try SMAppService.mainApp.unregister(); try SMAppService.mainApp.register() }
+            catch { loginError = error.localizedDescription }
+        }
         if CommandLine.arguments.contains("--enable-login") && SMAppService.mainApp.status == .notRegistered {
             do { try SMAppService.mainApp.register() } catch { NSLog("Login registration failed: %@", error.localizedDescription) }
         }
+        if origin == "http://127.0.0.1:18420" { startService() }
         poll()
         if CommandLine.arguments.contains("--setup") { showSetup() }
         if CommandLine.arguments.contains("--show") {
@@ -108,10 +119,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func startService() {
         guard worker?.isRunning != true, startupError == nil, installedCorrectly,
-              let script = Bundle.main.url(forResource: "run-service", withExtension: "sh") else { return }
-        guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/colima"),
+              let script = Bundle.main.url(forResource: "ensure-service", withExtension: "sh") else { return }
+        guard origin == "http://127.0.0.1:18420" else { startupError = "could not reach the vm server. check its address and connection."; refreshSetup(); return }
+        guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/limactl"),
+              FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/qemu-system-aarch64"),
               FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") else {
-            startupError = "the browser runtime is missing. install colima and docker to continue."
+            startupError = "the browser runtime is missing. install lima, qemu and docker to continue."
             refreshSetup(); return
         }
         startupStarted = startupStarted ?? Date()
@@ -119,9 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path]
         let directory = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/Igor Browser")
+            .appendingPathComponent("Library/Logs/Igor VM")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let log = directory.appendingPathComponent("service.log")
+        let log = directory.appendingPathComponent("server.log")
         if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
         if let handle = try? FileHandle(forWritingTo: log) {
             handle.seekToEndOfFile()
@@ -152,7 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = path == "/windows" ? 10 : 5
+        request.timeoutInterval = path == "/take-control" ? 180 : (path == "/windows" ? 10 : 5)
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let error = error { completion(.failure(error)); return }
@@ -196,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                     } else if self.lastRequest != id {
                         self.lastRequest = id
                         let content = UNMutableNotificationContent()
-                        content.title = "igor browser needs your help"
+                        content.title = "igor vm needs your help"
                         content.body = self.helpMessage
                         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
                             if let error = error {
@@ -210,6 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                     }
                 }
             }
+            self.request("/client-status", post: true, arguments: ["notifications": self.notificationReady, "login": self.loginReady]) { _ in }
             self.renderSetup()
             self.updateMenu()
             self.refreshBrowserWindows()
@@ -235,12 +249,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             update.target = updater
         }
         menu.addItem(.separator())
-        menu.addItem(withTitle: "quit igor browser", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: "server…", action: #selector(configureServer), keyEquivalent: "")
+        menu.addItem(withTitle: "quit igor vm", action: #selector(quit), keyEquivalent: "q")
         for entry in menu.items where entry.action != nil && entry.target == nil { entry.target = self }
         for entry in menu.items where entry.action == nil { entry.isEnabled = false }
         if !statusMenuOpen && pauseTip?.isShown != true { item.menu = menu }
         item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (mode == "paused" ? "pause.circle" : (setupComplete ? "globe" : "exclamationmark.circle")), accessibilityDescription: state)
-        item.button?.toolTip = setupComplete ? state : "igor browser needs setup"
+        item.button?.toolTip = setupComplete ? state : "igor vm needs setup"
         if mode != "paused" { pauseTip?.close() }
         else { schedulePauseTip() }
     }
@@ -285,7 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 self.mode = "human"
                 self.makeWindow()
                 guard let token = self.token else { return }
-                self.webView?.load(URLRequest(url: URL(string: self.origin + "/viewer#" + token)!))
+                self.webView?.load(URLRequest(url: URL(string: self.origin + "/viewer?native=1#" + token)!))
                 self.prepareVisibleInterface()
                 NSApp.activate(ignoringOtherApps: true)
                 self.window?.makeKeyAndOrderFront(nil)
@@ -332,7 +347,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if window != nil { return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1152, height: 800),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "igor browser · you have control"
+        window.title = "igor vm · you have control"
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("IgorBrowserViewer")
@@ -396,7 +411,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func showError(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "igor browser"
+        alert.messageText = "igor vm"
         alert.informativeText = message
         alert.runModal()
     }
@@ -428,24 +443,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         completionHandler([.banner, .list])
     }
 
+    @objc func configureServer() {
+        prepareVisibleInterface()
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "connect to a server"
+        alert.informativeText = "use the same computer locally or on another host. remote connections require https."
+        alert.addButton(withTitle: "connect")
+        alert.addButton(withTitle: "cancel")
+        let fields = NSStackView()
+        fields.orientation = .vertical; fields.alignment = .leading; fields.spacing = 8
+        fields.addArrangedSubview(NSTextField(labelWithString: "server url"))
+        let address = NSTextField(string: origin)
+        address.widthAnchor.constraint(equalToConstant: 360).isActive = true
+        fields.addArrangedSubview(address)
+        fields.addArrangedSubview(NSTextField(labelWithString: "credential file · leave empty for local server"))
+        let credential = NSTextField(string: UserDefaults.standard.string(forKey: "serverTokenFile") ?? "")
+        credential.widthAnchor.constraint(equalToConstant: 360).isActive = true
+        fields.addArrangedSubview(credential)
+        fields.frame = NSRect(x: 0, y: 0, width: 360, height: 116)
+        alert.accessoryView = fields
+        guard alert.runModal() == .alertFirstButtonReturn else { updateWindowMode(); return }
+        let value = address.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: value), (url.scheme == "https" || (url.scheme == "http" && url.host == "127.0.0.1")),
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil, url.path.isEmpty || url.path == "/" else {
+            let error = NSAlert(); error.messageText = "invalid server url"; error.informativeText = "use an https origin, or http://127.0.0.1:18420 for the local server."; error.runModal(); return
+        }
+        if mode == "human" { let error = NSAlert(); error.messageText = "finish using this computer first"; error.runModal(); return }
+        UserDefaults.standard.set(value.hasSuffix("/") ? String(value.dropLast()) : value, forKey: "serverOrigin")
+        let file = credential.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if file.isEmpty { UserDefaults.standard.removeObject(forKey: "serverTokenFile") }
+        else { UserDefaults.standard.set((file as NSString).expandingTildeInPath, forKey: "serverTokenFile") }
+        startupError = nil; runtimeReady = false; mode = "starting"; lastRequest = nil
+        poll(); showSetup()
+    }
+
     @objc func quit() {
         guard !quitting else { return }
         quitting = true
-        let beforeShutdown = mode == "agent" ? "/status" : "/cancel"
-        request(beforeShutdown, post: mode != "agent") { _ in
-            self.request("/shutdown", post: true) { _ in
-                self.worker?.terminate()
-                let stop = Process()
-                stop.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/colima")
-                stop.arguments = ["stop", "igor-browser"]
-                stop.standardOutput = FileHandle.nullDevice
-                stop.standardError = FileHandle.nullDevice
-                try? stop.run()
-                self.shutdownComplete = true
-                if self.terminationPending { NSApp.reply(toApplicationShouldTerminate: true) }
-                else { NSApp.terminate(nil) }
-            }
+        let finish = {
+            self.shutdownComplete = true
+            if self.terminationPending { NSApp.reply(toApplicationShouldTerminate: true) }
+            else { NSApp.terminate(nil) }
         }
+        // Viewer exit follows its automation toggle. Server and VM stay independent.
+        if mode == "human" {
+            request("/close-viewer", post: true) { result in
+                if case .failure(let error) = result {
+                    self.quitting = false
+                    if self.terminationPending { self.terminationPending = false; NSApp.reply(toApplicationShouldTerminate: false) }
+                    let alert = NSAlert(); alert.messageText = "could not return control"; alert.informativeText = error.localizedDescription; alert.runModal()
+                    return
+                }
+                finish()
+            }
+        } else { finish() }
     }
 }
 

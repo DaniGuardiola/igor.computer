@@ -29,7 +29,7 @@ def windows():
         if 'chromium' not in kind.lower():
             continue
         result.append({'id': identifier, 'title': title or 'browser',
-                       'active': int(identifier, 16) == active,
+                       'active': int(identifier, 16) == active, 'desktop': int(desktop),
                        'x': int(x), 'y': int(y), 'width': int(width), 'height': int(height)})
     return result
 
@@ -40,10 +40,9 @@ def execute(action, identifier=None, expected=None):
     if action != 'list' and current != expected:
         raise ValueError('Browser restarted. Refresh the window list and retry.')
     if action == 'restore':
+        # Keep workspace assignments while restoring sizes and minimized windows.
         # Fixed-size dialogs cannot maximize; raise them without resizing.
-        desktop = next(line.split()[0] for line in run('wmctrl', '-d').splitlines() if line.split()[1] == '*')
         for entry in entries:
-            run('wmctrl', '-ir', entry['id'], '-t', desktop)
             run('wmctrl', '-ia', entry['id'])
             allowed = run('xprop', '-id', entry['id'], '_NET_WM_ALLOWED_ACTIONS')
             if '_NET_WM_ACTION_MAXIMIZE_HORZ' in allowed and '_NET_WM_ACTION_MAXIMIZE_VERT' in allowed:

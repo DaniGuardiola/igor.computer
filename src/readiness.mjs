@@ -1,10 +1,10 @@
 export function nativeReadiness(status, now = Date.now()) {
   if (!status || !Number.isFinite(status.checkedAt) || now - status.checkedAt > 15000 || now < status.checkedAt - 5000) {
-    return { ready: false, issues: ['Open Igor Browser to enable human help.'], notifications: false };
+    return { ready: false, issues: ['Open Igor VM to enable human help.'], notifications: false };
   }
   const issues = [];
-  if (!status.notifications) issues.push('Allow Igor Browser notifications in System Settings.');
-  if (!status.login) issues.push('Enable Igor Browser at login in its setup window.');
+  if (!status.notifications) issues.push('Allow Igor VM notifications in System Settings.');
+  if (!status.login) issues.push('Enable Igor VM at login in its setup window.');
   return { ready: issues.length === 0, issues, notifications: status.notifications === true, ...(status.notificationSettings ? { notificationSettings: status.notificationSettings } : {}) };
 }
 export function helpDelivery(setup) {

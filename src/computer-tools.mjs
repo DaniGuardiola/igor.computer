@@ -1,0 +1,13 @@
+const object = (properties = {}, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
+const string = { type: 'string' };
+export const computerTools = [
+  { name: 'computer_exec', description: 'Run a shell command inside the persistent Linux computer as its unprivileged user. Home and /workspace persist. Never runs on the host. Human takeover blocks execution.', inputSchema: object({ command: string, cwd: string, timeoutSeconds: { type: 'number', minimum: 1, maximum: 120 } }, ['command']) },
+  { name: 'computer_file', description: 'Read, write, or list paths within /workspace. Read returns base64. Maximum 512 KiB per file; shell tools can inspect larger files.', inputSchema: object({ operation: { enum: ['read', 'write', 'list'] }, path: string, content: string, encoding: { enum: ['utf8', 'base64'] } }, ['operation', 'path']) },
+  { name: 'computer_screenshot', description: 'Capture the shared desktop. Prefer browser DOM tools for browser content.', inputSchema: object() },
+  { name: 'computer_input', description: 'Click, type, press keys, or scroll on the shared desktop. All clients serialize through one ownership gate; never run during human takeover. Select your workspace first.', inputSchema: object({ kind: { enum: ['click', 'type', 'key', 'scroll'] }, x: { type: 'integer' }, y: { type: 'integer' }, button: { type: 'integer' }, text: string, key: string, amount: { type: 'integer' } }, ['kind']) },
+  { name: 'computer_workspace', description: 'Manage named OS workspaces and place Chromium windows on them. One browser process/profile shares logins and extensions across all workspaces. Workspaces organize windows; they do not isolate accounts or mouse/keyboard.', inputSchema: object({ action: { enum: ['list', 'create', 'select', 'move', 'open_browser'] }, name: string, id: string, generation: string, url: string }, ['action']) },
+  { name: 'computer_begin_turn', description: 'Keep computer awake throughout an agent turn, including gaps between tools. Use a unique stable turnId; always end it in finally. Leases do not silently expire.', inputSchema: object({ turnId: string }, ['turnId']) },
+  { name: 'computer_end_turn', description: 'Release a completed turn so idle sleep can resume.', inputSchema: object({ turnId: string }, ['turnId']) },
+  { name: 'computer_sleep', description: 'Save RAM and disk and stop the VM. Rejected during active turns, commands or human takeover. The next computer tool wakes the same desktop.', inputSchema: object() },
+  { name: 'computer_wake', description: 'Wake the saved computer without launching a user-facing window.', inputSchema: object() },
+];

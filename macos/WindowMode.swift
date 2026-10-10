@@ -14,12 +14,12 @@ extension AppDelegate {
     func makeApplicationMenu() {
         let main = NSMenu()
         let applicationItem = NSMenuItem()
-        let application = NSMenu(title: "igor browser")
+        let application = NSMenu(title: "igor vm")
         let settings = NSMenuItem(title: "settings…", action: #selector(showSetup), keyEquivalent: ",")
         settings.target = self
         application.addItem(settings)
         application.addItem(.separator())
-        let quitItem = NSMenuItem(title: "quit igor browser", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "quit igor vm", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         application.addItem(quitItem)
         applicationItem.submenu = application

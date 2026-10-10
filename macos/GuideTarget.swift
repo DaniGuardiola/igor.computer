@@ -10,7 +10,7 @@ enum GuideTarget {
         let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? []
         // The same toggle identifier occurs on every app's notification page.
         // Match our page before pointing to a control.
-        let matchingWindows = kind == "notifications" ? windows.filter { string($0, kAXTitleAttribute).lowercased() == "igor browser" } : windows
+        let matchingWindows = kind == "notifications" ? windows.filter { string($0, kAXTitleAttribute).lowercased() == "igor vm" } : windows
         guard !matchingWindows.isEmpty else { return nil }
         var queue = matchingWindows
         var index = 0
@@ -30,7 +30,7 @@ enum GuideTarget {
                 default: notificationMatch = identifier == step.targetIdentifier
                 }
                 let matched = kind == "notifications" ? notificationMatch :
-                    (identifier.contains("ai.igor.browser") || description.contains("igor browser") || title.contains("igor browser"))
+                    (identifier.contains("ai.igor.browser") || description.contains("igor vm") || title.contains("igor vm"))
                 if matched, let frame = frame(element) { return frame }
             }
             if let children = attribute(element, kAXChildrenAttribute) as? [AXUIElement] { queue.append(contentsOf: children) }

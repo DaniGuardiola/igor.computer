@@ -1,160 +1,213 @@
-# Igor Browser
+# Igor VM
 
-A headed Chromium that stays off your Mac desktop until you want it.
+A persistent computer for your agents. One server, wherever you run it.
 
-Igor Browser runs an unmodified distribution Chromium in a dedicated ARM64
-Colima VM. Xvfb owns its display; noVNC streams the whole browser into a native
-macOS window. The menu-bar app starts the local service. MCP clients use normal
-Chrome DevTools tools plus a small human-handoff layer.
+The server owns a native-architecture QEMU Linux VM managed by Lima. Inside it,
+stock Debian Chromium, Xvfb and Openbox provide a headed desktop. Browser logins
+and extensions are shared across named OS workspaces. Separate MCP workspace
+connections keep their own DevTools page selection; accounts remain shared.
+The macOS app and authenticated web viewer are clients of the same server.
+Quitting either client does not stop the server or VM.
 
-## Use it
+The agent's conversation, orchestration and task state belong outside this
+computer. Igor integration remains deferred; its existing browser options are
+unchanged. This project can connect to any MCP client.
 
-Choose **show browser** in the menu bar to configure extensions, sign in, or
-inspect the browser. Automation pauses before you get control. The native window
-bar focuses or closes guest Chrome windows, including dialogs. **restore** brings
-windows onto the current guest desktop and maximizes windows that support it.
-**automation** sets whether the agent can run after you close the viewer.
-While the viewer is open, automation always stays paused. **done** and the red
-close button both follow that setting; closing with automation off shows a
-menu bar tip explaining how to resume. Closing every guest browser window reopens a blank window without
-restarting the virtual display or MCP service. Saved cookies remain; old page IDs
-expire and the agent must inspect fresh page state.
+## Install
 
-Use **pause automation** or **resume automation** in the menu bar menu to toggle agent access without opening the browser. The first pause and closing the viewer with automation off show a native tip pointing to the menu icon and explaining how to resume.
-
-When an agent needs help, it supplies a short instruction and pauses. The globe
-changes to a help indicator. With notifications enabled, clicking the notification
-opens the same browser. No browser relaunch, profile transfer, or page reload.
-The setup window guides notification permission and start at login.
-Settings lets you change those choices later. macOS may require approval in Login Items. Quitting the app stops its service and dedicated VM, retaining the profile.
-
-## Development setup
-
-Requires Apple Silicon, macOS 13+, Xcode command-line tools, Node.js 22.19+
-(or a newer supported Node.js release), and Homebrew.
+macOS requires Apple Silicon, macOS 13+, Homebrew, and Xcode command-line tools
+for development builds:
 
 ```sh
-brew install colima docker
+brew install lima qemu docker
 npm ci
-colima start igor-browser --arch aarch64 --vm-type vz --cpu 2 --memory 3 \
-  --disk 20 --runtime docker --mount none --activate=false
-npm run vm:build
-npm run vm:start
 npm run build:mac
-bash scripts/install-mac.sh
+bash scripts/install-mac.sh --replace --enable-login
 ```
 
-The built app bundles a pinned Node 24 runtime and its service dependencies.
-It runs without this checkout; public downloads still need release signing and notarization. Installing into
-`~/Applications` makes launch-at-login registration possible without modifying
-system Applications.
+The app installs an independent LaunchAgent server in
+`~/Library/Application Support/Igor VM/server`. It bundles Node and dependencies,
+so neither the app nor server needs this checkout. The bundle identifier and credential directory remain stable across the rename,
+so existing notification permissions and credentials are retained. The native app guides
+notifications and its own login registration. The server starts independently
+at login and stays available when the app quits. First start builds the guest
+image. DMG and Homebrew distribution details are in [distribution](distribution/README.md).
 
-## Connect any MCP client
+A Linux host uses the same server and MCP protocol. Install Lima, native QEMU
+with firmware, Docker CLI and Node 22.19+, grant the service user access to KVM,
+then run:
 
-Run the native app first, then configure a stdio server (use your actual app install path):
+```sh
+npm ci
+npm run server:install
+```
+
+The installer creates a systemd user service. For an unattended server, an
+administrator must enable lingering for that service user with
+`loginctl enable-linger USER`. Linux deployment is implemented but has not yet
+been exercised on a real Linux/KVM host. macOS is the validated deployment.
+
+## Connect
+
+For local stdio MCP, configure your client with absolute installed paths:
 
 ```json
 {
   "mcpServers": {
-    "igor-browser": {
-      "command": "/Applications/Igor Browser.app/Contents/Resources/runtime/bin/node",
-      "args": ["/Applications/Igor Browser.app/Contents/Resources/runtime/src/mcp.mjs"]
+    "igor-vm": {
+      "command": "/Users/NAME/Library/Application Support/Igor VM/server/bin/node",
+      "args": ["/Users/NAME/Library/Application Support/Igor VM/server/src/mcp.mjs"],
+      "env": {"IGOR_VM_WORKSPACE": "agent-name"}
     }
   }
 }
 ```
 
-The MCP bridge reads its local credential directly from Application Support.
-Do not put that credential in prompts or tool arguments. Closing an MCP client
-leaves the service and browser running.
+Remote clients can use authenticated Streamable HTTP at `https://HOST/mcp`,
+with `Authorization: Bearer CREDENTIAL` and an optional `X-Igor-Workspace` header.
+The stdio bridge also supports `IGOR_VM_URL` and `IGOR_VM_TOKEN_FILE`. Credentials
+belong in private client configuration/files, never prompts or tool arguments.
+The default workspace is `shared`; use a distinct workspace name per agent for
+independent DevTools selection state.
 
-Human handoff uses `browser_request_human({message, pageId})`, then
-`browser_wait_human({requestId, timeoutSeconds})`. A `continued` result permits
-resuming after a fresh snapshot. `waiting` means wait again; `cancelled` means
-stop. `setup-required` means finish setup in the macOS app; automation stays paused.
-`browser_status` reports ownership, setup state, and browser/display health. The service rejects all upstream tools
-while human help is pending or the user has control. One in-flight browser tool
-must finish before the user can open the viewer.
+The macOS menu's **server…** action accepts an HTTPS origin and credential file
+for the same server on another host. The web viewer is at `/viewer`. It accepts
+a credential through its connection form; it does not need a native app.
 
-## Igor extension
+By default the server binds only `127.0.0.1:18420`. To publish it through your
+own TLS reverse proxy, create `server.json` in the state directory:
 
-The extension manifest and browser skill are included for a later integration.
-Keep the existing Igor browser options enabled while the standalone app is
-being polished.
+```json
+{"HOST":"127.0.0.1","PORT":18420,"ORIGIN":"https://vm.example.com","IDLE_SECONDS":300}
+```
 
-This first version has one shared profile and one ownership gate for all clients.
-It does not isolate accounts between Igor agents. Tabs and profile data belong
-to the service, not to an MCP client's lifetime.
+Preserve the public Host header and forward WebSocket upgrades. Expose only the
+authenticated service port, never raw CDP/VNC or the Docker socket. A non-loopback
+bind requires an HTTPS public origin; the TLS reverse proxy terminates TLS.
+Environment variables `IGOR_VM_HOST`, `IGOR_VM_PORT`, `IGOR_VM_ORIGIN`,
+`IGOR_VM_IDLE_SECONDS`, `IGOR_VM_NAME`, `IGOR_VM_LIMA_HOME` and
+`IGOR_VM_STATE_DIR` override configuration. This version runs one persistent
+computer per host; multi-user hosting needs separate hosts or isolated VM services.
 
-## What persists
+## Computer tools
 
-The named Docker volume `igor-browser-profile` stores Chromium's complete profile.
-Clean shutdown flushes it before stopping the virtual display. Human takeover
-preserves live page state; restarting the browser preserves saved cookies and
-storage but not unsaved forms or JavaScript state. Sites may expire sessions.
-The service restores interrupted human takeover as paused, never as automatic
-permission to continue a cancelled task.
+Normal Chrome DevTools MCP tools remain available, alongside:
 
-## Local boundaries
+| Tool | Purpose |
+| --- | --- |
+| `computer_exec` | Bounded shell commands inside the guest as its unprivileged user. |
+| `computer_file` | Read, write or list paths inside `/workspace`; 512 KiB per transfer. |
+| `computer_workspace` | Create/select OS workspaces; open or move browser windows. |
+| `computer_screenshot`, `computer_input` | Capture and interact with the calling client's workspace. |
+| `computer_begin_turn`, `computer_end_turn` | Protect an entire turn from idle sleep, including gaps between tools. |
+| `computer_sleep`, `computer_wake` | Save/stop and restore RAM plus disk. |
+| `browser_status` | Ownership, lifecycle, active turn IDs and human help. |
+| `browser_request_human`, `browser_wait_human` | Pause and hand the same computer to a person. |
 
-The dedicated VM has no macOS directory mounts or SSH-agent forwarding. The
-container runs as an unprivileged user, drops host capabilities, and uses
-Chromium's namespace and seccomp renderer sandbox. Its Docker seccomp profile
-extends Moby's default only for namespace creation and sandbox chroot.
+Desktop actions serialize through one ownership gate. Pixel actions select the
+calling client's workspace within that gate. Workspaces organize windows;
+they do not provide separate displays, accounts or a security boundary.
+Use `computer_workspace` with `open_browser` to create a window on an agent's
+workspace, then inspect/select its pages through DevTools. Preserve unrelated
+windows and tabs. A busy response means retry after the current action finishes.
 
-Service, display, and CDP ports bind to macOS loopback. The service checks a
-private credential and Origin/Host headers. The viewer WebSocket requires human
-control and disconnects on return/cancel. Raw local CDP and display ports are
-trusted-machine implementation endpoints; local processes could bypass the MCP
-ownership gate. They are not an isolation boundary against untrusted software
-running as the Mac user. Do not publish them to a LAN or the internet.
+Hold a unique turn ID from the first computer-dependent step until completion,
+and release it in `finally`. Turn leases persist through server restart and
+never silently expire. After an agent crash, inspect `browser_status` and
+explicitly end its stale turn. Without a turn lease, idle time counts between
+tool calls.
 
-Password-manager desktop integration, Touch ID, passkeys, and real CAPTCHA/site
-compatibility need hands-on validation. A headed browser does not guarantee a
-website accepts automation. There is no CAPTCHA bypass or fingerprint spoofing.
+## Human control
 
-## Check and stop
+Choose **show browser** or **take control** in the web viewer. All agent browser,
+shell, file and pixel tools stop before human interaction begins. A command
+already running must finish first. The native frame and web toolbar can focus,
+close and restore guest browser windows; closing every window recovers a blank
+window without losing profile data.
+
+**automation** independently chooses whether automation can resume after closing.
+**done** returns control following that setting. The native app explains a paused
+close with a tip at its menu icon. Closing a web tab without **done** leaves the
+computer under human control; reopen the viewer to finish. It never silently
+resumes because a network connection disappeared.
+
+An agent asks for help with a short message and optional page ID, then waits on
+the returned request ID. A connected native client can notify the user. Otherwise
+the response supplies a viewer URL. Only `continued` permits resumption;
+`cancelled` means stop. Inspect fresh page state after takeover. No CAPTCHA
+bypass, personal Chrome modification or focus theft is involved.
+
+## Persistence and sleep
+
+The VM's writable disk stores its container, profile, home and workspace volumes.
+User-installed tools under `/home/browser`, including Python virtual environments,
+survive browser/container replacement. Files belong in `/workspace`. The guest
+container's root filesystem survives ordinary VM stop/sleep, but image upgrades
+replace it; put custom system packages in the image recipe and rebuild it.
+
+After five idle minutes, the server snapshots RAM and disk, then force-stops
+QEMU without shutting down the saved guest. It never sleeps during an active
+turn, command, pending help or human takeover. Status polling does not wake it.
+The next computer tool wakes it before acting.
+
+Restore loads the snapshot before any guest boot instructions execute. Lima's
+regenerated read-only boot ISO must be remounted and its readiness markers updated;
+static forwards reconnect CDP and the display. Browser forms and JavaScript survive.
+DevTools reconnect changes its page IDs: call `list_pages` after wake and refresh
+IDs before using them. Remote website connections can fail or sessions expire.
+
+The snapshot records the QEMU version and refuses restoration with a changed
+version. Restore the sleeping VM before upgrading QEMU. Snapshots remain local
+to this machine/configuration; cross-host live migration is not promised.
+
+On service restart, pending human ownership returns paused. Active turn leases
+remain protected. On snapshot failure, the server reports the error and attempts
+to keep the live VM usable instead of discarding state.
+
+## Migration and rollback
+
+`scripts/migrate-browser.sh` copies the former Colima profile after clean shutdown.
+It refuses to overwrite an existing target profile and saves a private tar backup.
+The previous VM and volume remain intact. The macOS installer archives the
+former app in the same private backup directory and refreshes its login path. VZ-to-QEMU migration restarts Chromium
+once; saved sessions transfer, unsaved RAM cannot transfer between drivers.
+
+The initial migration has a Git checkpoint tag,
+`checkpoint/browser-before-vm-20261010`, and a profile backup under
+`~/Library/Application Support/Igor VM/backups`. To roll back, stop the new server
+LaunchAgent, stop `igor-vm`, restore the checkpoint app/code and start the old
+Colima profile. Keep the newer VM/data until you decide whether to migrate any
+changes back. Git rollback alone does not roll back browser data.
+
+## Verification
 
 ```sh
 npm test
+npm run test:mac
+bash scripts/start-fixture.sh
 node tests/live.mjs
+node tests/clients-live.mjs
+npm run test:vm
+node tests/window-recovery.mjs
+node tests/server-recovery.mjs
 ```
 
-`tests/live.mjs` uses the harmless fixture at guest `http://127.0.0.1:8080`.
-Run `bash scripts/start-fixture.sh` first. It tests MCP discovery, page state,
-pause/resume, authorization, and cancellation. It writes only test cookies/storage.
+The live checks cover real stdio and HTTP MCP, shared cookies with independent
+agent page selection, shell/files, workspace windows, screenshot/input, the human
+gate, RAM/form restoration, authenticated display proxy, server restart recovery
+and last-window recovery. Run them while the computer
+is available for verification; they create only test pages/files.
 
-```sh
-docker --context colima-igor-browser stop igor-browser
-colima stop igor-browser
-```
+macOS snapshot save/stop and wake measured roughly 2s and 6s in these checks;
+these are observations, not general performance guarantees. Linux/KVM deployment,
+production TLS deployment, password-manager desktop integration, Touch ID,
+passkeys and site-specific CAPTCHA behavior still require host/site validation.
 
-Stopping preserves the profile. Do not delete the named volume unless you intend
-to remove saved browser sessions. VM memory allocation is a ceiling; measure
-container, VM, and macOS service separately rather than calling it total RAM use.
-
-## Building blocks
-
-- [Colima](https://github.com/abiosoft/colima), backed by [Lima](https://github.com/lima-vm/lima)
-- Stock [Debian Chromium](https://packages.debian.org/bookworm/chromium)
-- [noVNC](https://github.com/novnc/noVNC), websockify, Xvfb, Openbox, x11vnc
-- [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp)
-
-DevTools MCP usage telemetry and CrUX requests are disabled. No custom Chromium
-fork, modified app bundle, private macOS display API, or personal Chrome profile.
-
-## Setup and distribution
-
-The app checks notification permission, desktop and Notification Center delivery, temporary/persistent style, login registration, and browser/display health at startup and while running. Permission alone makes notifications ready. Desktop + Notification Center delivery and persistent style are optional recommendations for human-help requests. Incomplete setup opens once on launch; dismissing it leaves a **Finish Setup** menu item and warning icon. When everything is ready, setup closes and that menu item disappears. **Settings** remains available for deliberate changes. An AI request made while alerts are unavailable opens the setup window once for that request; automation stays paused and MCP reports `setup-required`.
-
-Opening notifications or login approval in System Settings shows a floating guide once its foreground window geometry settles. The guide fades in at its attached position; step changes use a brief glide and opacity cue, disabled by Reduce Motion. It reuses extend.computer's MIT-licensed PermissionFlow window tracker without requesting Accessibility access. The notification guide follows the earliest missing control, including when a setting is disabled again: required Allow Notifications, optional Desktop + Notification Center, then optional Persistent. Optional steps explain that closing Settings skips them; the guide has no separate dismiss control. Full completion closes System Settings when the guide opened its only window, preserves a pre-existing window, and returns focus to Igor Browser settings. Its pointer uses existing Accessibility access when available. Otherwise, macOS 26+ default-layout notification positions are estimated from the Settings window; unfamiliar window sizes fall back to pointing at the window. Checks use public notification APIs without that permission. Runtime failures have an explicit retry and log, rather than an endless silent restart loop.
-
-The app now bundles Node and its service dependencies; it runs independently of the source checkout. `npm run package:dmg` creates a local development disk image. Sparkle is embedded for signed app updates, but development builds have no published update feed. Homebrew cask template and release requirements are in [distribution/README.md](distribution/README.md). Public distribution, notarization, and an actual update installation remain release work.
-
-The app uses regular activation while settings or browser windows are open, including minimized windows. Closing the last interface window returns it to accessory mode with no Dock icon; the menu-bar item remains available. Manual System Settings closure uses normal macOS focus return, while full guide completion explicitly returns to Igor Browser settings.
-
-Igor integration is deferred while this standalone app is polished. Existing Igor browser fallbacks remain in use.
-
-The settings helper uses the same rounded material treatment as extend.computer. When existing Accessibility trust exposes the exact control, it sits beside that control and points at it; otherwise it stays attached to the Settings window. It never requests Accessibility permission for this feature. It flips sides at screen edges, leaves the toggle unobstructed, and removes the pointer when the target cannot be verified.
-
-Window recovery integration check: `node tests/window-recovery.mjs` after `npm run vm:build`. It uses a disposable container/profile and checks focus, restore, repeated last-window recovery, VNC continuity, saved cookies, and MCP reconnection. Add `--background-start` to verify a live Chromium process with no windows is recovered too.
+The VM has no host directory mounts or SSH-agent forwarding. Chromium remains
+stock and sandboxed. Raw CDP/VNC bind to host loopback and are trusted-host
+implementation endpoints. The display proxy also authenticates guest-side
+connections, preventing browser pages from taking over via guest localhost.
+Local software running as the host user can bypass
+the MCP gate. Dependencies: [Lima](https://github.com/lima-vm/lima),
+[QEMU](https://www.qemu.org/), Debian Chromium, Openbox, Xvfb, noVNC/websockify,
+x11vnc and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp).
