@@ -18,7 +18,7 @@ const tunnel = action => exec('ssh', ['-F', join(vmDir, 'ssh.config'), '-O', act
 const computer = async (action, args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-browser/computer.py', action, JSON.stringify(args)));
 const windows = async (action = 'list', args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-browser/windows.py', action, ...(action === 'list' ? [] : [args.id || '', args.generation])));
 async function waitFor(check) { for (let i = 0; i < 60; i++) { try { const result = await check(); if (result) return result; } catch {} await delay(250); } throw Error('Timed out'); }
-let socket, a, b;
+let socket, a, b, fresh;
 try {
   await tunnel('forward');
   await docker('run', '-d', '--name', name, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges=true', '--security-opt', 'seccomp=' + process.cwd() + '/container/seccomp.json', '--shm-size', '512m', '--memory', '2g', '--cpus', '2', '-p', '127.0.0.1:18432:9222', '-v', volume + ':/profile', 'igor-vm:0.2.0');
@@ -59,6 +59,13 @@ try {
   assert.ok(!evaluated.isError, JSON.stringify(evaluated));
   await waitFor(async () => (await windows()).windows.some(w => w.desktop === desktopA && w.title.includes('reopened agent a')));
   console.log('PASS: agent recovery selects its own reopened window and preserves another agent’s window');
+  fresh = await client('fresh-agent-a');
+  const initial = await new BrowserWorkspaces(computer, windows).ensure('agent-a', 'agent-a', fresh, 'evaluate_script');
+  await fresh.callTool({ name: 'evaluate_script', arguments: { pageId: initial.pageId, function: '() => { document.title="fresh agent a"; return true; }' } });
+  await waitFor(async () => (await windows()).windows.some(w => w.desktop === desktopA && w.title.includes('fresh agent a')));
+  assert.equal((await windows()).windows.length, 2);
+  console.log('PASS: fresh client starts in its own existing window without adding another window');
+
   await helper.ensure('agent-a', 'agent-a', a, 'new_page');
   const page = await a.callTool({ name: 'new_page', arguments: { url: 'about:blank' } });
   assert.ok(!page.isError);
@@ -86,7 +93,7 @@ try {
   assert.equal((await windows()).windows.length, userCount);
   console.log('PASS: launcher focuses existing workspace browser without opening duplicates; logins survive closure');
 } finally {
-  socket?.close(); await a?.close(); await b?.close();
+  socket?.close(); await a?.close(); await b?.close(); await fresh?.close();
   await docker('rm', '-f', name).catch(() => {});
   await docker('volume', 'rm', volume).catch(() => {});
   await tunnel('cancel').catch(() => {});

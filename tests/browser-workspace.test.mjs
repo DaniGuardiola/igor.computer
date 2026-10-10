@@ -20,14 +20,14 @@ test('closed agent workspace reopens there and selects its new page, preserving 
   assert.equal(actions.filter(([action]) => action === 'workspace_open_browser').length, 1);
 });
 
-test('first connection selects an existing workspace tab by focus without creating another window', async () => {
+test('first connection starts a fresh tab in the existing workspace window without guessing focus', async () => {
   const actions = [];
   const state = { generation: 'g', workspaces: [{ name: 'agent', desktop: 1 }], windows: [{ id: 'own', desktop: 1, app: 'Chromium' }] };
   const helper = new BrowserWorkspaces(async action => { actions.push(action); return state; }, async (action, args) => { assert.equal(args.id, 'own'); actions.push(action); });
   const calls = [];
-  const client = { async callTool(request) { calls.push(request); return { content: [{ type: 'text', text: request.name === 'list_pages' ? '1: user\n7: own' : JSON.stringify({ igorWorkspaceFocused: request.arguments.pageId === 7 }) }] }; } };
+  const client = { async callTool(request) { calls.push(request); return { content: [{ type: 'text', text: '1: user\n7: own [selected]'  }] }; } };
   await helper.ensure('agent', 'agent', client, 'evaluate_script');
-  assert.deepEqual(calls.find(call => call.name === 'select_page').arguments, { pageId: 7 });
+  assert.deepEqual(calls.find(call => call.name === 'new_page').arguments, { url: 'about:blank' });
   assert.equal(actions.includes('workspace_open_browser'), false);
   assert.deepEqual(pageIds({ content: [{ type: 'text', text: '## Pages\n0: about:blank [selected]\n12: https://example.test' }] }), [0, 12]);
 });

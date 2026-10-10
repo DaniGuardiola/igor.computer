@@ -154,6 +154,7 @@ extension AppDelegate: NSToolbarDelegate {
         } else if identifier == .browserLauncher {
             let button = BrowserHoverButton(image: NSImage(systemSymbolName: "globe", accessibilityDescription: "open browser")!, target: self, action: #selector(launchBrowser))
             configureBrowserIcon(button)
+            button.setAccessibilityLabel("open browser")
             button.toolTip = "open or focus browser in this workspace"
             item.view = button
             item.label = "browser"

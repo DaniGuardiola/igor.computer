@@ -32,19 +32,14 @@ export class BrowserWorkspaces {
     } else if (!this.prepared.has(name)) {
       const entry = entries.find(window => window.active) || entries[0];
       await this.windows('focus', { id: entry.id, generation: state.generation });
-      // Find the focused tab without changing titles, moving windows or touching Chrome.
-      let focused;
-      for (let attempt = 0; attempt < 10 && focused === undefined; attempt++) {
-        for (const pageId of pageIds(await call('list_pages'))) {
-          const result = await call('evaluate_script', { pageId, function: '() => ({igorWorkspaceFocused: document.hasFocus()})' });
-          if (!result.isError && result.content?.some(item => /"igorWorkspaceFocused"\s*:\s*true/.test(item.text || ''))) {
-            focused = pageId; break;
-          }
-        }
-        if (focused === undefined) await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      if (focused === undefined) throw new Error('Could not select this workspace’s browser tab. Retry shortly.');
-      await call('select_page', { pageId: focused });
+      // DevTools cannot map its page IDs to OS workspaces. A fresh tab in the
+      // focused window establishes this client's context without guessing from
+      // document focus, which Chromium also reports for background workspaces.
+      const result = await call('new_page', { url: 'about:blank' });
+      const text = result.content?.filter(item => item.type === 'text').map(item => item.text).join('\n') || '';
+      const selected = /^(\d+):.*\[selected\]/m.exec(text);
+      if (result.isError || !selected) throw new Error('Could not select this workspace’s browser tab. Retry shortly.');
+      recovery = { pageId: Number(selected[1]), currentIds: pageIds(result) };
       this.prepared.add(name);
     }
     if (tool === 'new_page') {
