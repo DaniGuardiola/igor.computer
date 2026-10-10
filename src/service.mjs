@@ -115,6 +115,7 @@ let nativeClientStatus;
 const tools = (await upstream.listTools()).tools;
 const allTools = [...tools, ...computerTools];
 const viewer = await readFile(join(base, 'viewer.html'));
+const chromiumIcon = await readFile(join(base, 'assets/chromium.png'));
 const sockets = new Set();
 const proxy = httpProxy.createProxyServer({ target: 'http://127.0.0.1:18423', ws: true });
 proxy.on('error', (_error, _req, res) => {
@@ -204,6 +205,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store',
         'Content-Security-Policy': `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${new URL(origin).origin.replace(/^http/, "ws")}; frame-ancestors 'none'` });
       return res.end(viewer);
+    }
+    if (path === '/assets/chromium.png' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      return res.end(chromiumIcon);
     }
     if (!authorized(req)) return json(res, { error: 'Unauthorized.' }, 401);
     if (path === '/session' && req.method === 'POST') {

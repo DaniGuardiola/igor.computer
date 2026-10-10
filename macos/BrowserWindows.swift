@@ -98,10 +98,14 @@ private final class BrowserWindowChip: NSStackView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         if selected || hovered || pressed {
-            let color = selected ? NSColor.controlAccentColor : NSColor.labelColor
-            let opacity: CGFloat = selected ? (pressed ? 0.30 : (hovered ? 0.24 : 0.16)) : (pressed ? 0.14 : 0.08)
+            let color = NSColor.labelColor
+            let opacity: CGFloat = pressed ? 0.16 : (hovered ? 0.10 : 0.05)
             color.withAlphaComponent(opacity).setFill()
             NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: 1), xRadius: 7, yRadius: 7).fill()
+            if selected {
+                NSColor.controlAccentColor.setFill()
+                NSBezierPath(roundedRect: NSRect(x: bounds.midX - 10, y: isFlipped ? bounds.maxY - 3 : 1, width: 20, height: 2), xRadius: 1, yRadius: 1).fill()
+            }
         }
     }
 }
@@ -128,7 +132,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.workspaces, .browserLauncher, .browserWindows, .flexibleSpace, .browserActions]
+        [.workspaces, .flexibleSpace, .browserActions]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -152,10 +156,12 @@ extension AppDelegate: NSToolbarDelegate {
             item.label = "workspace"
             item.isBordered = false
         } else if identifier == .browserLauncher {
-            let button = BrowserHoverButton(image: NSImage(systemSymbolName: "globe", accessibilityDescription: "open browser")!, target: self, action: #selector(launchBrowser))
+            let button = BrowserHoverButton(image: desktopAppIcon("chromium"), target: self, action: #selector(launchBrowser))
             configureBrowserIcon(button)
-            button.setAccessibilityLabel("open browser")
-            button.toolTip = "open or focus browser in this workspace"
+            button.imageScaling = .scaleProportionallyDown
+            button.contentTintColor = nil
+            button.setAccessibilityLabel("open chromium")
+            button.toolTip = "open or focus chromium in this workspace"
             item.view = button
             item.label = "browser"
             item.isBordered = false
@@ -257,19 +263,39 @@ extension AppDelegate: NSToolbarDelegate {
         button.heightAnchor.constraint(equalToConstant: 28).isActive = true
     }
 
+    private func desktopAppIcon(_ app: String) -> NSImage {
+        if app.lowercased().contains("chromium"),
+           let resources = Bundle.main.resourceURL,
+           let image = NSImage(contentsOf: resources.appendingPathComponent("runtime/src/assets/chromium.png")) {
+            image.size = NSSize(width: 20, height: 20)
+            return image
+        }
+        return NSImage(systemSymbolName: "app", accessibilityDescription: app)!
+    }
+
     func configureAutomationBanner(_ window: NSWindow) {
+        guard let toolbar = window.toolbar,
+              let launcher = self.toolbar(toolbar, itemForItemIdentifier: .browserLauncher, willBeInsertedIntoToolbar: false)?.view,
+              let tasks = self.toolbar(toolbar, itemForItemIdentifier: .browserWindows, willBeInsertedIntoToolbar: false)?.view else { return }
         let label = NSTextField(labelWithString: "automation is paused while this window is open")
         label.font = .systemFont(ofSize: 11)
         label.textColor = .secondaryLabelColor
-        label.alignment = .center
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 26))
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.widthAnchor.constraint(equalToConstant: 1).isActive = true
+        separator.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        let row = NSStackView(views: [launcher, separator, tasks, label])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 12
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 900, height: 42))
+        row.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(row)
         NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 16),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16)
+            row.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            row.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            row.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
         let accessory = NSTitlebarAccessoryViewController()
         accessory.view = view
@@ -374,7 +400,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func renderBrowserWindows(_ windows: [[String: Any]], unavailable: Bool = false) {
-        let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? ""] }) + String(unavailable) + windowGeneration
+        let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? "", $0["app"] ?? ""] }) + String(unavailable) + windowGeneration
         guard let stack = windowChips else { return }
         if signature == windowListSignature {
             updateBrowserWindowSelection(windows)
@@ -397,16 +423,19 @@ extension AppDelegate: NSToolbarDelegate {
             if title == "about:blank" { title = "blank tab" }
             else if title == "New Tab" { title = "new tab" }
             let focus = BrowserHoverButton(title: title, target: self, action: #selector(focusBrowserWindow(_:)))
+            focus.image = desktopAppIcon(entry["app"] as? String ?? "")
+            focus.imagePosition = .imageLeading
+            focus.imageScaling = .scaleProportionallyDown
             focus.bezelStyle = .inline
             focus.isBordered = false
             focus.setButtonType(.momentaryChange)
             focus.state = entry["active"] as? Bool == true ? .on : .off
             focus.font = .systemFont(ofSize: 12, weight: .medium)
-            focus.contentTintColor = .labelColor
+            focus.contentTintColor = nil
             focus.lineBreakMode = .byTruncatingTail
             focus.identifier = NSUserInterfaceItemIdentifier(id + ":" + windowGeneration)
             focus.toolTip = title
-            let buttonWidth = ceil(min(180, max(64, (title as NSString).size(withAttributes: [.font: focus.font!]).width + 22)))
+            let buttonWidth = ceil(min(180, max(64, (title as NSString).size(withAttributes: [.font: focus.font!]).width + 48)))
             focus.widthAnchor.constraint(equalToConstant: buttonWidth).isActive = true
             focus.heightAnchor.constraint(equalToConstant: 28).isActive = true
             let close = BrowserHoverButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "close " + title)!, target: self, action: #selector(closeBrowserWindow(_:)))
