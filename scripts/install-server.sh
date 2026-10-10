@@ -71,9 +71,11 @@ CHECK
     cp -R "$source_dir/$directory" "$server_dir/$directory"
   done
   mkdir -p "$server_dir/bin"
-  if [ -x "$source_dir/bin/node" ]; then cp "$source_dir/bin/node" "$server_dir/bin/node";
-  elif [ -x "$source_dir/.deps/node/bin/node" ]; then cp "$source_dir/.deps/node/bin/node" "$server_dir/bin/node";
-  else cp "$(command -v node)" "$server_dir/bin/node"; fi
+  if [ -x "$source_dir/bin/node" ]; then cp "$source_dir/bin/node" "$server_dir/bin/node.new";
+  elif [ -x "$source_dir/.deps/node/bin/node" ]; then cp "$source_dir/.deps/node/bin/node" "$server_dir/bin/node.new";
+  else cp "$(command -v node)" "$server_dir/bin/node.new"; fi
+  # A fresh inode avoids macOS retaining the previous executable code signature.
+  mv -f "$server_dir/bin/node.new" "$server_dir/bin/node"
   fi
   printf '%s\n' "$revision" > "$server_dir/version.txt"
   printf '%s\n' "$version" > "$server_dir/server-version.json"

@@ -46,9 +46,9 @@ extension AppDelegate {
         let controller = NSViewController()
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 150))
         controller.view = view
-        let title = NSTextField(labelWithString: "browser paused")
+        let title = NSTextField(labelWithString: "vm paused")
         title.font = .systemFont(ofSize: 14, weight: .semibold)
-        let detail = NSTextField(wrappingLabelWithString: "the browser is hidden and automation is still paused. choose resume automation from this menu when you're ready.")
+        let detail = NSTextField(wrappingLabelWithString: "the computer is hidden and automation is still paused. choose resume automation from this menu when you're ready.")
         detail.font = .systemFont(ofSize: 13)
         detail.textColor = .secondaryLabelColor
         let done = NSButton(title: "got it", target: self, action: #selector(dismissPauseTip))

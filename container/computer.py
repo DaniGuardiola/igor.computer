@@ -28,6 +28,10 @@ def workspace(action, args):
     file = STATE / 'workspaces.json'
     data = json.loads(file.read_text()) if file.exists() else {'shared': 0}
     name = args.get('name', 'shared')
+    # The original shared desktop is the user's default; preserve existing windows.
+    if name == 'user': name = 'shared'
+    labels_file = STATE / 'workspace-labels.json'
+    labels = json.loads(labels_file.read_text()) if labels_file.exists() else {}
     if not isinstance(name, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,60}', name):
         raise ValueError('Invalid workspace name.')
     if action == 'workspace_create' and name not in data:
@@ -38,6 +42,13 @@ def workspace(action, args):
         temporary = file.with_suffix('.tmp')
         temporary.write_text(json.dumps(data))
         temporary.replace(file)
+    if action == 'workspace_create' and isinstance(args.get('label'), str):
+        label = args['label'].strip()
+        if not label or len(label) > 80: raise ValueError('Invalid workspace label.')
+        labels[name] = label
+        temporary = labels_file.with_suffix('.tmp')
+        temporary.write_text(json.dumps(labels))
+        temporary.replace(labels_file)
     if action != 'workspace_list' and name not in data:
         raise ValueError('Create the workspace first.')
     if action == 'workspace_select':
@@ -66,7 +77,7 @@ def workspace(action, args):
         else:
             raise ValueError('Browser window did not appear.')
     active = next(int(line.split()[0]) for line in run('wmctrl', '-d').splitlines() if line.split()[1] == '*')
-    return {'workspaces': [{'name': key, 'desktop': value, 'active': value == active} for key, value in data.items()],
+    return {'workspaces': [{'name': key, 'label': 'user' if key == 'shared' else labels.get(key, key), 'desktop': value, 'active': value == active} for key, value in data.items()],
             'generation': generation(), 'windows': windows()}
 
 

@@ -25,10 +25,8 @@ def windows():
         identifier, desktop, _, x, y, width, height, _ = parts[:8]
         title = parts[8]
         kind = run('xprop', '-id', identifier, 'WM_CLASS')
-        # Only managed Chromium windows, including its dialogs and popups.
-        if 'chromium' not in kind.lower():
-            continue
-        result.append({'id': identifier, 'title': title or 'browser',
+        # Enumerate all managed application windows, including dialogs.
+        result.append({'id': identifier, 'title': title or 'untitled', 'app': kind,
                        'active': int(identifier, 16) == active, 'desktop': int(desktop),
                        'x': int(x), 'y': int(y), 'width': int(width), 'height': int(height)})
     return result
@@ -40,6 +38,8 @@ def execute(action, identifier=None, expected=None):
     if action != 'list' and current != expected:
         raise ValueError('Browser restarted. Refresh the window list and retry.')
     if action == 'restore':
+        desktop = next(int(line.split()[0]) for line in run('wmctrl', '-d').splitlines() if line.split()[1] == '*')
+        entries = [entry for entry in entries if entry['desktop'] in (desktop, -1)]
         # Keep workspace assignments while restoring sizes and minimized windows.
         # Fixed-size dialogs cannot maximize; raise them without resizing.
         for entry in entries:
@@ -58,7 +58,8 @@ def execute(action, identifier=None, expected=None):
         run('wmctrl', '-ia' if action == 'focus' else '-ic', identifier)
     elif action != 'list':
         raise ValueError('Unknown window action.')
-    return {'generation': current, 'windows': windows()}
+    desktop = next(int(line.split()[0]) for line in run('wmctrl', '-d').splitlines() if line.split()[1] == '*')
+    return {'generation': current, 'desktop': desktop, 'windows': windows()}
 
 
 if __name__ == '__main__':

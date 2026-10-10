@@ -107,6 +107,7 @@ private final class BrowserWindowChip: NSStackView {
 }
 
 private extension NSToolbarItem.Identifier {
+    static let workspaces = Self("workspaces")
     static let browserWindows = Self("browserWindows")
     static let browserActions = Self("browserActions")
     static let restoreWindows = Self("restoreWindows")
@@ -126,7 +127,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.browserWindows, .flexibleSpace, .browserActions]
+        [.workspaces, .browserWindows, .flexibleSpace, .browserActions]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -135,7 +136,21 @@ extension AppDelegate: NSToolbarDelegate {
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         let item = NSToolbarItem(itemIdentifier: identifier)
-        if identifier == .browserActions {
+        if identifier == .workspaces {
+            let picker = NSPopUpButton(frame: .zero, pullsDown: false)
+            picker.bezelStyle = .rounded
+            picker.font = .systemFont(ofSize: 12, weight: .medium)
+            picker.target = self
+            picker.action = #selector(selectWorkspace(_:))
+            picker.addItem(withTitle: "user")
+            picker.isEnabled = false
+            picker.widthAnchor.constraint(equalToConstant: 150).isActive = true
+            picker.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            workspacePicker = picker
+            item.view = picker
+            item.label = "workspace"
+            item.isBordered = false
+        } else if identifier == .browserActions {
             let controls: [NSToolbarItem.Identifier] = [.restoreWindows, .hideBrowser, .returnToAgent]
             let views = controls.compactMap { self.toolbar(toolbar, itemForItemIdentifier: $0, willBeInsertedIntoToolbar: false)?.view }
             let group = NSStackView(views: views)
@@ -148,9 +163,9 @@ extension AppDelegate: NSToolbarDelegate {
             group.heightAnchor.constraint(equalToConstant: 28).isActive = true
             item.view = group
             item.isBordered = false
-            item.label = "browser controls"
+            item.label = "computer controls"
         } else if identifier == .browserWindows {
-            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 650, height: 28))
+            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 460, height: 28))
             scroll.drawsBackground = false
             scroll.hasHorizontalScroller = true
             scroll.scrollerStyle = .overlay
@@ -160,7 +175,7 @@ extension AppDelegate: NSToolbarDelegate {
             stack.spacing = 4
             stack.distribution = .fill
             stack.alignment = .centerY
-            stack.frame = NSRect(x: 0, y: 0, width: 650, height: 28)
+            stack.frame = NSRect(x: 0, y: 0, width: 460, height: 28)
             scroll.documentView = stack
             windowStrip = scroll
             windowChips = stack
@@ -168,7 +183,7 @@ extension AppDelegate: NSToolbarDelegate {
             item.isBordered = false
             scroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 180).isActive = true
             scroll.heightAnchor.constraint(equalToConstant: 28).isActive = true
-            let preferredWidth = scroll.widthAnchor.constraint(equalToConstant: 650)
+            let preferredWidth = scroll.widthAnchor.constraint(equalToConstant: 460)
             preferredWidth.priority = .defaultLow
             preferredWidth.isActive = true
             item.label = "windows"
@@ -178,7 +193,7 @@ extension AppDelegate: NSToolbarDelegate {
             switch identifier {
             case .restoreWindows:
                 button = BrowserHoverButton(image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "restore windows")!, target: self, action: #selector(restoreBrowserWindows))
-                button.toolTip = "bring all browser windows back and maximize them"
+                button.toolTip = "restore and maximize windows"
                 configureBrowserIcon(button)
                 item.label = "restore"
             case .hideBrowser:
@@ -213,7 +228,7 @@ extension AppDelegate: NSToolbarDelegate {
                 button.font = .systemFont(ofSize: 12, weight: .medium)
                 button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
                 button.setAccessibilityLabel("done")
-                button.toolTip = "close this window and let your agent use the browser"
+                button.toolTip = "close this window and let your agent use the computer"
                 button.bezelStyle = .inline
                 item.label = "done"
             default: return nil
@@ -269,13 +284,16 @@ extension AppDelegate: NSToolbarDelegate {
     func refreshBrowserWindows() {
         guard mode == "human", window?.isVisible == true, !windowListRunning, !windowActionRunning else { return }
         windowListRunning = true
-        request("/windows") { result in
+        request("/workspaces") { result in
             self.windowListRunning = false
-            guard self.mode == "human", self.window?.isVisible == true else { return }
+            guard self.mode == "human", self.window?.isVisible == true, !self.windowActionRunning else { return }
             switch result {
             case .success(let data):
                 self.windowGeneration = data["generation"] as? String ?? ""
-                let windows = data["windows"] as? [[String: Any]] ?? []
+                let workspaces = data["workspaces"] as? [[String: Any]] ?? []
+                self.renderWorkspaces(workspaces)
+                let desktop = workspaces.first(where: { $0["active"] as? Bool == true })?["desktop"] as? Int ?? 0
+                let windows = (data["windows"] as? [[String: Any]] ?? []).filter { ($0["desktop"] as? Int) == desktop || ($0["desktop"] as? Int) == -1 }
                 self.renderBrowserWindows(windows)
                 if self.browserNeedsFocus, let target = windows.first(where: { $0["active"] as? Bool == true }) ?? windows.first,
                    let id = target["id"] as? String {
@@ -290,6 +308,55 @@ extension AppDelegate: NSToolbarDelegate {
         }
     }
 
+    func renderWorkspaces(_ workspaces: [[String: Any]]) {
+        guard let picker = workspacePicker else { return }
+        let signature = String(describing: workspaces)
+        guard signature != workspaceListSignature else { return }
+        workspaceListSignature = signature
+        picker.removeAllItems()
+        for workspace in workspaces {
+            let name = workspace["name"] as? String ?? "shared"
+            picker.addItem(withTitle: workspace["label"] as? String ?? name)
+            picker.lastItem?.representedObject = name
+            if workspace["active"] as? Bool == true { picker.select(picker.lastItem); selectedWorkspace = name }
+        }
+        picker.menu?.addItem(.separator())
+        picker.addItem(withTitle: "open browser window")
+        picker.lastItem?.representedObject = "__browser"
+        picker.addItem(withTitle: "new workspace…")
+        picker.lastItem?.representedObject = "__new"
+        picker.isEnabled = true
+    }
+
+    @objc func selectWorkspace(_ sender: NSPopUpButton) {
+        guard let name = sender.selectedItem?.representedObject as? String, !windowActionRunning else { return }
+        var args: [String: Any] = ["action": "select", "name": name]
+        if name == "__browser" {
+            args = ["action": "open_browser"]
+        }
+        if name == "__new" {
+            let alert = NSAlert()
+            alert.messageText = "new workspace"
+            let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+            input.placeholderString = "workspace name"
+            alert.accessoryView = input
+            alert.addButton(withTitle: "create")
+            alert.addButton(withTitle: "cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { workspaceListSignature = ""; refreshBrowserWindows(); return }
+            let label = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !label.isEmpty else { workspaceListSignature = ""; refreshBrowserWindows(); return }
+            args = ["action": "create", "name": "workspace-" + UUID().uuidString.lowercased(), "label": label]
+        }
+        windowActionRunning = true
+        sender.isEnabled = false
+        request("/workspaces", post: true, arguments: args) { result in
+            self.windowActionRunning = false
+            self.workspaceListSignature = ""
+            if case .failure(let error) = result { self.showError(error.localizedDescription) }
+            self.refreshBrowserWindows()
+        }
+    }
+
     func renderBrowserWindows(_ windows: [[String: Any]], unavailable: Bool = false) {
         let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? ""] }) + String(unavailable) + windowGeneration
         guard let stack = windowChips else { return }
@@ -301,7 +368,7 @@ extension AppDelegate: NSToolbarDelegate {
         for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
         var width: CGFloat = 0
         if windows.isEmpty {
-            let label = NSTextField(labelWithString: unavailable ? "windows unavailable · retrying…" : "opening browser…")
+            let label = NSTextField(labelWithString: unavailable ? "windows unavailable · retrying…" : "no windows in this workspace")
             label.font = .systemFont(ofSize: 12)
             label.textColor = .secondaryLabelColor
             stack.addArrangedSubview(label)
@@ -309,7 +376,7 @@ extension AppDelegate: NSToolbarDelegate {
         }
         for entry in windows {
             guard let id = entry["id"] as? String else { continue }
-            let fullTitle = entry["title"] as? String ?? "browser"
+            let fullTitle = entry["title"] as? String ?? "untitled"
             var title = fullTitle.hasSuffix(" - Chromium") ? String(fullTitle.dropLast(11)) : fullTitle
             if title == "about:blank" { title = "blank tab" }
             else if title == "New Tab" { title = "new tab" }

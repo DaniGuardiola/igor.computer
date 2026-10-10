@@ -212,3 +212,7 @@ Local software running as the host user can bypass
 the MCP gate. Dependencies: [Lima](https://github.com/lima-vm/lima),
 [QEMU](https://www.qemu.org/), Debian Chromium, Openbox, Xvfb, noVNC/websockify,
 x11vnc and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp).
+
+### Viewer workspaces
+
+The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_VM_WORKSPACE_LABEL`. Create extra named workspaces from the picker and open a browser window there. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.

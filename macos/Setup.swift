@@ -148,7 +148,7 @@ extension AppDelegate {
         summary.textColor = .secondaryLabelColor
         let done = NSButton(title: "done", target: self, action: #selector(closeSetup))
         done.bezelStyle = .rounded
-        let primary = NSButton(title: "open browser", target: self, action: #selector(openBrowserFromSetup))
+        let primary = NSButton(title: "open computer", target: self, action: #selector(openBrowserFromSetup))
         primary.bezelStyle = .rounded; primary.keyEquivalent = "\r"
         primary.bezelColor = .controlAccentColor
         let logs = NSButton(title: "view log", target: self, action: #selector(openLog))

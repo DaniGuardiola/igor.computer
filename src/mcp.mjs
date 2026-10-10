@@ -11,7 +11,7 @@ const token = (await readFile(process.env.IGOR_VM_TOKEN_FILE || join(stateDir, '
 async function call(path, args, signal) {
   const response = await fetch(endpoint + path, {
     method: args === undefined ? 'GET' : 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Igor-Workspace': process.env.IGOR_VM_WORKSPACE || 'shared' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Igor-Workspace': process.env.IGOR_VM_WORKSPACE || 'shared', 'X-Igor-Workspace-Label': encodeURIComponent(process.env.IGOR_VM_WORKSPACE_LABEL || process.env.IGOR_VM_WORKSPACE || 'shared') },
     ...(args === undefined ? {} : { body: JSON.stringify(args) }), signal: signal || AbortSignal.timeout(180000),
   }).catch(error => { throw new Error(error.name === 'AbortError' ? 'Request cancelled.' : 'Igor VM server is unavailable. Check server status or its log.'); });
   const data = await response.json();

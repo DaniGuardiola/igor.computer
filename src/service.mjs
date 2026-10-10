@@ -148,7 +148,7 @@ function disconnectViewer() {
   for (const socket of sockets) socket.destroy();
   sockets.clear();
 }
-async function dispatch(path, args, signal, workspace = 'shared') {
+async function dispatch(path, args, signal, workspace = 'shared', label = workspace) {
   if (path === '/status') return getStatus();
   if (path === '/tools') return { tools: allTools };
   if (path === '/request-human') {
@@ -170,7 +170,7 @@ async function dispatch(path, args, signal, workspace = 'shared') {
     return runAgent(async () => {
       await requireBrowser();
       if (name === 'computer_wake') return runtimeManager.status();
-      if (['computer_input', 'computer_screenshot'].includes(name)) { await computer('workspace_create', { name: workspace }); await computer('workspace_select', { name: workspace }); }
+      if (['computer_input', 'computer_screenshot'].includes(name)) { await computer('workspace_create', { name: workspace, ...(label !== workspace ? { label } : {}) }); await computer('workspace_select', { name: workspace }); }
       const action = name === 'computer_workspace' ? 'workspace_' + parameters.action : name.slice('computer_'.length);
       return computer(action, parameters);
     });
@@ -179,6 +179,7 @@ async function dispatch(path, args, signal, workspace = 'shared') {
     // Set the busy gate before waking, so takeover cannot race restoration.
     return runAgent(async () => {
       await requireBrowser();
+      await computer('workspace_create', { name: workspace, ...(label !== workspace ? { label } : {}) });
       if (!tools.some(tool => tool.name === args.name)) throw new Error('Unknown browser tool.');
       return (await browserClient(workspace)).callTool(args, undefined, { timeout: 120000, signal });
     });
@@ -192,6 +193,8 @@ const server = http.createServer(async (req, res) => {
     if (req.headers.host !== new URL(origin).host || !sameOrigin(req)) return json(res, { error: 'Invalid origin.' }, 403);
     const path = new URL(req.url, origin).pathname;
     const workspace = req.headers['x-igor-workspace'] || 'shared';
+    const label = decodeURIComponent(req.headers['x-igor-workspace-label'] || workspace);
+    if (typeof label !== 'string' || label.length > 80 || !label.trim()) throw new Error('Invalid workspace label.');
     if (typeof workspace !== 'string' || !/^[a-zA-Z0-9_-]{1,60}$/.test(workspace)) throw new Error('Invalid client workspace.');
     if (path === '/viewer' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store',
@@ -205,7 +208,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/mcp') {
       if (req.method !== 'POST') return json(res, { error: 'Use stateless streamable HTTP POST.' }, 405);
-      const mcp = createMcpServer((path, args, signal) => dispatch(path, args, signal, workspace));
+      const mcp = createMcpServer((path, args, signal) => dispatch(path, args, signal, workspace, label));
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       mcpConnections.add(mcp);
       res.on('close', () => { mcpConnections.delete(mcp); void mcp.close(); });
@@ -225,22 +228,40 @@ const server = http.createServer(async (req, res) => {
       await requireBrowser();
       return json(res, await browserWindows());
     }
+    if (path === '/workspaces' && req.method === 'GET') {
+      if (control.mode !== 'human') throw new Error('Open the computer to manage workspaces.');
+      return json(res, await computer('workspace_list'));
+    }
     if (path === '/tools' && req.method === 'GET') return json(res, { tools: allTools });
     if (req.method !== 'POST') return json(res, { error: 'Not found.' }, 404);
     const args = await body(req);
+    if (path === '/workspaces') {
+      if (!['select', 'create', 'open_browser'].includes(args.action)) throw new Error('Unknown workspace action.');
+      return json(res, await control.runHuman(async () => {
+        if (args.action === 'open_browser' && !args.name) {
+          const state = await computer('workspace_list');
+          args.name = state.workspaces.find(workspace => workspace.active)?.name;
+        }
+        const result = await computer('workspace_' + args.action, args);
+        if (args.action === 'create') return computer('workspace_select', { name: args.name });
+        return result;
+      }));
+    }
     if (path === '/client-status') { nativeClientStatus = { ...args, checkedAt: Date.now() }; return json(res, { ok: true }); }
-    if (path === '/computer') return json(res, await dispatch('/computer', args, undefined, workspace));
-    if (path === '/request-human') return json(res, await dispatch(path, args, undefined, workspace));
+    if (path === '/computer') return json(res, await dispatch('/computer', args, undefined, workspace, label));
+    if (path === '/request-human') return json(res, await dispatch(path, args, undefined, workspace, label));
     if (path === '/windows' && req.method === 'POST') {
       if (control.mode !== 'human') throw new Error('Open the browser to manage windows.');
       return json(res, await control.runHuman(() => browserWindows(args.action, args)));
     }
     if (path === '/take-control') {
+      const intervention = control.mode === 'pending';
       await changeControl(() => control.takeControl());
       control.humanBusy = true;
       try {
         await requireBrowser();
         if (await computerBusy()) throw new Error('Finishing an interrupted computer command. Retry shortly.');
+        if (!intervention) await computer('workspace_select', { name: 'shared' });
       } catch (error) {
         control.mode = 'paused'; control.automationPaused = true;
         throw error;
@@ -253,7 +274,7 @@ const server = http.createServer(async (req, res) => {
     if (path === '/resume') { const status = await changeControl(() => { const status = control.resume(); disconnectViewer(); return status; }); return json(res, status); }
     if (path === '/cancel') { disconnectViewer(); const status = await changeControl(() => control.cancel()); return json(res, status); }
     if (path === '/shutdown') { json(res, { ok: true }); setImmediate(close); return; }
-    if (path === '/call') return json(res, await dispatch(path, args, undefined, workspace));
+    if (path === '/call') return json(res, await dispatch(path, args, undefined, workspace, label));
     return json(res, { error: 'Not found.' }, 404);
   } catch (error) { json(res, { error: error.message }, 409); }
 });

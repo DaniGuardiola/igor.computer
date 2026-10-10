@@ -15,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var window: NSWindow?
     var webView: WKWebView?
     var windowStrip: NSScrollView?
+    var workspacePicker: NSPopUpButton?
+    var workspaceListSignature = ""
+    var selectedWorkspace = "shared"
     var windowChips: NSStackView?
     var windowListSignature = ""
     var windowGeneration = ""
@@ -234,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if mode != "paused" { pauseTip?.close() }
         let menu = NSMenu()
         menu.delegate = self
-        let state = (!runtimeReady && mode != "starting") ? "browser unavailable" : (["agent": "browser ready", "pending": "your help is needed", "human": "you have control", "paused": "browser paused", "starting": "starting browser…"][mode] ?? mode)
+        let state = (!runtimeReady && mode != "starting") ? "vm unavailable" : (["agent": "vm ready", "pending": "your help is needed", "human": "you have control", "paused": "vm paused", "starting": "starting vm…"][mode] ?? mode)
         menu.addItem(withTitle: state, action: nil, keyEquivalent: "")
         if mode == "pending" { menu.addItem(withTitle: helpMessage, action: nil, keyEquivalent: "") }
         if !setupComplete { menu.addItem(withTitle: "finish setup…", action: #selector(showSetup), keyEquivalent: "") }
@@ -242,7 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let pause = menu.addItem(withTitle: automationPaused ? "resume automation" : "pause automation", action: #selector(togglePause), keyEquivalent: "")
         pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human"].contains(mode))
         menu.autoenablesItems = false
-        menu.addItem(withTitle: "show browser", action: #selector(showBrowser), keyEquivalent: "")
+        menu.addItem(withTitle: "open computer", action: #selector(showBrowser), keyEquivalent: "")
         menu.addItem(withTitle: "settings…", action: #selector(showSetup), keyEquivalent: ",")
         if let updater = updater {
             let update = menu.addItem(withTitle: "check for updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")

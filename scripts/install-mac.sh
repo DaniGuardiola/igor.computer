@@ -27,7 +27,12 @@ if [ -e "$legacy" ]; then
   migration=(--migrate-login)
   printf 'Previous browser app archived in %s\n' "$archive"
 fi
-ditto 'build/Igor VM.app' "$app"
+stage=$(mktemp -d "$HOME/Applications/.igor-vm-install.XXXXXX")
+trap 'rm -rf "$stage"' EXIT
+ditto 'build/Igor VM.app' "$stage/Igor VM.app"
+# Replace the whole bundle instead of overwriting executable inodes in place.
+if [ -e "$app" ]; then mv "$app" "$backup/previous-install.app"; fi
+mv "$stage/Igor VM.app" "$app"
 if [ "${1:-}" = --replace ]; then shift; fi
 export PATH="$app/Contents/Resources/runtime/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 bash "$app/Contents/Resources/runtime/scripts/install-server.sh" --replace
