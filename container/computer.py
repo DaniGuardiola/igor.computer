@@ -64,6 +64,12 @@ def workspace(action, args):
         url = args.get('url', 'about:blank')
         if not isinstance(url, str) or not re.match(r'^(https?://|about:blank$)', url):
             raise ValueError('Provide an HTTP(S) URL or about:blank.')
+        existing = [window for window in windows() if window['desktop'] == data[name] and 'chromium' in window['app'].lower()]
+        if args.get('reuse') and existing:
+            target = next((window for window in existing if window['active']), existing[0])
+            run('wmctrl', '-ia', target['id'])
+            return workspace('workspace_list', {})
+        run('wmctrl', '-s', str(data[name]))
         before = {window['id'] for window in windows()}
         # Chromium's singleton hands this to the existing process/profile.
         run('chromium', '--user-data-dir=/profile', '--new-window', url)

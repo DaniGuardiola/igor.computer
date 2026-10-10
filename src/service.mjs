@@ -13,6 +13,7 @@ import httpProxy from 'http-proxy';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { browserWindows } from './windows.mjs';
+import { BrowserWorkspaces, recoveredRequest } from './browser-workspace.mjs';
 import { Control } from './control.mjs';
 import { nativeReadiness } from './readiness.mjs';
 
@@ -109,6 +110,7 @@ async function browserClient(workspace) {
   browserClients.set(workspace, client);
   return client;
 }
+const workspaceBrowsers = new BrowserWorkspaces(computer, browserWindows);
 let nativeClientStatus;
 const tools = (await upstream.listTools()).tools;
 const allTools = [...tools, ...computerTools];
@@ -179,9 +181,11 @@ async function dispatch(path, args, signal, workspace = 'shared', label = worksp
     // Set the busy gate before waking, so takeover cannot race restoration.
     return runAgent(async () => {
       await requireBrowser();
-      await computer('workspace_create', { name: workspace, ...(label !== workspace ? { label } : {}) });
       if (!tools.some(tool => tool.name === args.name)) throw new Error('Unknown browser tool.');
-      return (await browserClient(workspace)).callTool(args, undefined, { timeout: 120000, signal });
+      const client = await browserClient(workspace);
+      const recovery = args.name === 'close_page' ? undefined : await workspaceBrowsers.ensure(workspace, label, client, args.name);
+      const request = recoveredRequest(args, recovery);
+      return client.callTool(request, undefined, { timeout: 120000, signal });
     });
   }
   throw new Error('Unknown MCP route.');

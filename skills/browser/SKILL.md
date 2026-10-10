@@ -29,3 +29,5 @@ user's authorization for sending messages, purchases, or other external actions.
 Hold computer_begin_turn with a unique turnId while working, then release it with computer_end_turn in finally. After VM wake, refresh list_pages and page IDs. On notification-free hosts, give the user the returned viewer URL.
 
 The viewer starts on the independent user workspace. Your client workspace is named for your agent in Igor; other MCP clients may choose any workspace. Use computer_workspace to list, create or select desktops and open a browser window there. Workspaces share the computer and browser profile, not account isolation. Preserve windows in other workspaces.
+
+Browser commands automatically reopen a missing browser window in your client workspace and select its new tab. Closing windows does not reopen them automatically. Existing page IDs can become stale after closure; refresh list_pages before reusing them. Desktop and shell tools do not launch a browser. The viewer’s browser icon opens or focuses a browser in the selected workspace.

@@ -5,8 +5,6 @@ import time
 import uuid
 import secrets
 import json
-import urllib.request
-import urllib.error
 
 children = []
 stopping = False
@@ -64,19 +62,18 @@ try:
     browser_args = ['chromium', '--user-data-dir=/profile',
                      '--remote-debugging-port=9223', '--no-first-run',
                      '--no-default-browser-check', '--window-size=1440,1000',
-                     'about:blank']
-    def launch_browser(restore=False):
-        process = start(browser_args[:-1] + (["--restore-last-session"] if restore else ["about:blank"]))
+                     '--no-startup-window']
+    def launch_browser():
+        process = start(browser_args)
         with open('/tmp/igor-browser-generation.tmp', 'w') as file:
             json.dump({'generation': str(uuid.uuid4())}, file)
         os.replace('/tmp/igor-browser-generation.tmp', '/tmp/igor-browser-generation.json')
         return process
-    browser = launch_browser(restore=True)
+    browser = launch_browser()
     restart_attempts = []
-    next_window_check = time.monotonic() + 5
     while not stopping:
         if browser.poll() is not None:
-            # Keep X11, the window manager and VNC alive when the last window closes.
+            # Keep the computer and CDP available, without reopening user windows.
             if browser.returncode != 0:
                 now = time.monotonic()
                 restart_attempts = [attempt for attempt in restart_attempts if now - attempt < 30]
@@ -84,24 +81,10 @@ try:
                     raise RuntimeError('Chromium repeatedly failed to start')
                 restart_attempts.append(now)
             else:
-                # Deliberately closing windows is not a crash or failed launch.
                 restart_attempts = []
             children.remove(browser)
             time.sleep(0.5)
             browser = launch_browser()
-            next_window_check = time.monotonic() + 5
-        elif time.monotonic() >= next_window_check:
-            next_window_check = time.monotonic() + 2
-            # Extensions can keep Chromium alive after its last window closes.
-            try:
-                with urllib.request.urlopen('http://127.0.0.1:9223/json/list', timeout=1) as response:
-                    pages = json.load(response)
-                if not any(page.get('type') == 'page' for page in pages):
-                    request = urllib.request.Request('http://127.0.0.1:9223/json/new?about:blank', method='PUT')
-                    with urllib.request.urlopen(request, timeout=1) as response:
-                        response.read()
-            except (OSError, ValueError, urllib.error.URLError):
-                pass  # Startup/restart health checks already surface unavailable CDP.
         for child in children:
             if child.poll() is not None:
                 raise RuntimeError('Browser component exited: ' + str(child.args[0]))

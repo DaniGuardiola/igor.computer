@@ -120,11 +120,12 @@ tool calls.
 
 ## Human control
 
-Choose **show browser** or **take control** in the web viewer. All agent browser,
+Choose **open computer** or **take control** in the web viewer. All agent browser,
 shell, file and pixel tools stop before human interaction begins. A command
 already running must finish first. The native frame and web toolbar can focus,
-close and restore guest browser windows; closing every window recovers a blank
-window without losing profile data.
+close and restore guest application windows. Closing every window leaves the
+desktop empty. The browser launcher or the next agent browser command opens a
+window in the selected or calling workspace, preserving the shared profile.
 
 **automation** independently chooses whether automation can resume after closing.
 **done** returns control following that setting. The native app explains a paused
@@ -215,4 +216,4 @@ x11vnc and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtoo
 
 ### Viewer workspaces
 
-The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_VM_WORKSPACE_LABEL`. Create extra named workspaces from the picker and open a browser window there. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.
+The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_VM_WORKSPACE_LABEL`. Create extra named workspaces from the picker. The taskbar’s browser icon opens or focuses a browser in the selected workspace. Closing every window leaves the desktop empty; browser commands lazily reopen a window in the caller’s own workspace. Desktop and shell tools do not launch a browser. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.

@@ -107,6 +107,7 @@ private final class BrowserWindowChip: NSStackView {
 }
 
 private extension NSToolbarItem.Identifier {
+    static let browserLauncher = Self("browserLauncher")
     static let workspaces = Self("workspaces")
     static let browserWindows = Self("browserWindows")
     static let browserActions = Self("browserActions")
@@ -127,7 +128,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.workspaces, .browserWindows, .flexibleSpace, .browserActions]
+        [.workspaces, .browserLauncher, .browserWindows, .flexibleSpace, .browserActions]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -150,6 +151,13 @@ extension AppDelegate: NSToolbarDelegate {
             item.view = picker
             item.label = "workspace"
             item.isBordered = false
+        } else if identifier == .browserLauncher {
+            let button = BrowserHoverButton(image: NSImage(systemSymbolName: "globe", accessibilityDescription: "open browser")!, target: self, action: #selector(launchBrowser))
+            configureBrowserIcon(button)
+            button.toolTip = "open or focus browser in this workspace"
+            item.view = button
+            item.label = "browser"
+            item.isBordered = false
         } else if identifier == .browserActions {
             let controls: [NSToolbarItem.Identifier] = [.restoreWindows, .hideBrowser, .returnToAgent]
             let views = controls.compactMap { self.toolbar(toolbar, itemForItemIdentifier: $0, willBeInsertedIntoToolbar: false)?.view }
@@ -165,7 +173,7 @@ extension AppDelegate: NSToolbarDelegate {
             item.isBordered = false
             item.label = "computer controls"
         } else if identifier == .browserWindows {
-            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 460, height: 28))
+            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 28))
             scroll.drawsBackground = false
             scroll.hasHorizontalScroller = true
             scroll.scrollerStyle = .overlay
@@ -175,7 +183,7 @@ extension AppDelegate: NSToolbarDelegate {
             stack.spacing = 4
             stack.distribution = .fill
             stack.alignment = .centerY
-            stack.frame = NSRect(x: 0, y: 0, width: 460, height: 28)
+            stack.frame = NSRect(x: 0, y: 0, width: 420, height: 28)
             scroll.documentView = stack
             windowStrip = scroll
             windowChips = stack
@@ -183,7 +191,7 @@ extension AppDelegate: NSToolbarDelegate {
             item.isBordered = false
             scroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 180).isActive = true
             scroll.heightAnchor.constraint(equalToConstant: 28).isActive = true
-            let preferredWidth = scroll.widthAnchor.constraint(equalToConstant: 460)
+            let preferredWidth = scroll.widthAnchor.constraint(equalToConstant: 420)
             preferredWidth.priority = .defaultLow
             preferredWidth.isActive = true
             item.label = "windows"
@@ -321,8 +329,6 @@ extension AppDelegate: NSToolbarDelegate {
             if workspace["active"] as? Bool == true { picker.select(picker.lastItem); selectedWorkspace = name }
         }
         picker.menu?.addItem(.separator())
-        picker.addItem(withTitle: "open browser window")
-        picker.lastItem?.representedObject = "__browser"
         picker.addItem(withTitle: "new workspace…")
         picker.lastItem?.representedObject = "__new"
         picker.isEnabled = true
@@ -331,9 +337,6 @@ extension AppDelegate: NSToolbarDelegate {
     @objc func selectWorkspace(_ sender: NSPopUpButton) {
         guard let name = sender.selectedItem?.representedObject as? String, !windowActionRunning else { return }
         var args: [String: Any] = ["action": "select", "name": name]
-        if name == "__browser" {
-            args = ["action": "open_browser"]
-        }
         if name == "__new" {
             let alert = NSAlert()
             alert.messageText = "new workspace"
@@ -357,6 +360,18 @@ extension AppDelegate: NSToolbarDelegate {
         }
     }
 
+    @objc func launchBrowser() {
+        guard mode == "human", !windowActionRunning else { return }
+        windowActionRunning = true
+        request("/workspaces", post: true, arguments: ["action": "open_browser", "reuse": true]) { result in
+            self.windowActionRunning = false
+            if case .failure(let error) = result { self.showError(error.localizedDescription) }
+            self.refreshBrowserWindows()
+            self.window?.makeFirstResponder(self.webView)
+            self.webView?.evaluateJavaScript("document.querySelector('canvas')?.focus()")
+        }
+    }
+
     func renderBrowserWindows(_ windows: [[String: Any]], unavailable: Bool = false) {
         let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? ""] }) + String(unavailable) + windowGeneration
         guard let stack = windowChips else { return }
@@ -368,11 +383,11 @@ extension AppDelegate: NSToolbarDelegate {
         for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
         var width: CGFloat = 0
         if windows.isEmpty {
-            let label = NSTextField(labelWithString: unavailable ? "windows unavailable · retrying…" : "no windows in this workspace")
+            let label = NSTextField(labelWithString: unavailable ? "windows unavailable · retrying…" : "no open windows")
             label.font = .systemFont(ofSize: 12)
             label.textColor = .secondaryLabelColor
             stack.addArrangedSubview(label)
-            width = 230
+            width = 170
         }
         for entry in windows {
             guard let id = entry["id"] as? String else { continue }
