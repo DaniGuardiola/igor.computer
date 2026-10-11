@@ -1,4 +1,4 @@
-# Igor VM
+# igor.computer
 
 A persistent computer for your agents. One server, wherever you run it.
 
@@ -17,7 +17,7 @@ users can still choose custom browser themes independently.
 
 The agent's conversation, orchestration and task state belong outside this
 computer. Igor connects through `@igor.ai/extension-vm`, with Lightpanda first,
-Igor VM second, and My browser last. The server also connects to any other MCP
+igor.computer second, and My browser last. The server also connects to any other MCP
 client; it does not depend on Igor.
 
 ## Install

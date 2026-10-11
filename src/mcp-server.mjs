@@ -7,7 +7,7 @@ const extras = [
 ];
 
 export function createMcpServer(call) {
-const server = new Server({ name: 'igor-vm', version: '0.2.0' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'igor.computer', version: '0.2.0' }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...(await call('/tools')).tools, ...extras] }));
 server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
   const args = req.params.arguments || {};

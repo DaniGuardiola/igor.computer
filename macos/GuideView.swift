@@ -62,7 +62,7 @@ struct GuideView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(kind == "login" ? "start at login" : appearance.notificationStep.title)
                         .font(.system(size: 14, weight: .semibold))
-                    Text("igor vm").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("igor.computer").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
             }
@@ -82,7 +82,7 @@ struct GuideView: View {
 
     private var instruction: String {
         if kind == "login" {
-            return appearance.targeted ? "turn this on to keep your agent's browser available after login." : "turn on igor vm in login items to keep it available for your agent."
+            return appearance.targeted ? "turn this on to keep your agent's browser available after login." : "turn on igor.computer in login items to keep it available for your agent."
         }
         return appearance.notificationStep.instruction
     }

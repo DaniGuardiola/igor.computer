@@ -2,7 +2,7 @@
 name: browser
 description: Persistent headed Chromium fallback with a native human-control window.
 ---
-Use Lightpanda first for compatible work. Use Igor VM when a specific site
+Use Lightpanda first for compatible work. Use igor.computer when a specific site
 needs rendering, a saved Chromium login, or human interaction. Once a site is
 working here, keep its task in this browser. Do not switch engines mid-session.
 

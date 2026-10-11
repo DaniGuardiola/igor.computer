@@ -116,7 +116,7 @@ async function browserHealth() {
     }),
     displayHealth(),
   ]);
-  const issues = probes.flatMap((r, i) => r.status === 'rejected' ? [i === 0 ? 'Browser control is unavailable. Open Igor VM setup and retry.' : 'Browser display is unavailable. Open Igor VM setup and retry.'] : []);
+  const issues = probes.flatMap((r, i) => r.status === 'rejected' ? [i === 0 ? 'Browser control is unavailable. Open igor.computer setup and retry.' : 'Browser display is unavailable. Open igor.computer setup and retry.'] : []);
   return healthCache = { ready: issues.length === 0, issues, checkedAt: Date.now() };
 }
 async function getStatus() {
@@ -486,7 +486,7 @@ server.on('upgrade', async (req, socket, head) => {
     proxy.ws(req, socket, head);
   } catch { socket.destroy(); }
 });
-server.listen(port, host, () => console.error(`Igor VM server ready at ${origin}`));
+server.listen(port, host, () => console.error(`igor.computer server ready at ${origin}`));
 // HTTP status remains available during startup, sleep and recovery failures.
 const runtimeInitialization = runtimeManager.recoverState().catch(error => { runtimeManager.state = 'error'; runtimeManager.error = error.message; console.error('VM startup:', error.message); });
 const idleTimer = setInterval(() => { void runtimeManager.idle(control).catch(error => console.error('VM sleep:', error.message)); }, 5000);

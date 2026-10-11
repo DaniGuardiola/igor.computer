@@ -1,14 +1,14 @@
-cask "igor-vm" do
+cask "igor-computer" do
   version "@VERSION@"
   sha256 "@SHA256@"
   url "@DOWNLOAD_URL@"
-  name "Igor VM"
+  name "igor.computer"
   desc "Persistent agent computer with human takeover and MCP"
-  homepage "https://github.com/DaniGuardiola/igor-browser"
+  homepage "https://github.com/DaniGuardiola/igor.computer"
   depends_on macos: ">= :ventura"
   depends_on arch: :arm64
   depends_on formula: "lima"
   depends_on formula: "qemu"
   depends_on formula: "docker"
-  app "Igor VM.app"
+  app "igor.computer.app"
 end

@@ -63,7 +63,7 @@ extension AppDelegate {
 
     func makeSetupWindow() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 440), styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = "igor vm"
+        window.title = "igor.computer"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -83,7 +83,7 @@ extension AppDelegate {
         globe.contentTintColor = .controlAccentColor
         globe.symbolConfiguration = .init(pointSize: 32, weight: .regular)
         globe.widthAnchor.constraint(equalToConstant: 42).isActive = true
-        let title = NSTextField(labelWithString: "igor vm")
+        let title = NSTextField(labelWithString: "igor.computer")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         let subtitle = NSTextField(wrappingLabelWithString: "a computer for your agent.")
         subtitle.font = .systemFont(ofSize: 13)
@@ -206,7 +206,7 @@ extension AppDelegate {
         }
         wasSetupComplete = setupComplete
         let hasRuntime = origin != "http://127.0.0.1:18420" || FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/limactl") && FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") && FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/qemu-system-aarch64")
-        setupLabels["install"]?.stringValue = installedCorrectly ? "installed in applications." : "move igor vm to applications, then open it there."
+        setupLabels["install"]?.stringValue = installedCorrectly ? "installed in applications." : "move igor.computer to applications, then open it there."
         setupButtons["install"]?.isHidden = installedCorrectly
         setupButtons["install"]?.title = "applications"
         setupLabels["runtime"]?.stringValue = startupError ?? runtimeIssues.first ?? (runtimeReady ? "computer is ready." : "starting the computer. first setup may take a few minutes.")
@@ -220,7 +220,7 @@ extension AppDelegate {
             setupLabels["login"]?.stringValue = "enabled. human help will be available after login."
             setupButtons["login"]?.title = "turn off"
         case .requiresApproval:
-            setupLabels["login"]?.stringValue = "approve igor vm in login items in system settings."
+            setupLabels["login"]?.stringValue = "approve igor.computer in login items in system settings."
             setupButtons["login"]?.title = "open settings"
         default:
             setupLabels["login"]?.stringValue = "off · open the app manually after login"

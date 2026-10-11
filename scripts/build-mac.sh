@@ -5,7 +5,7 @@ bash scripts/fetch-sparkle.sh
 bash scripts/fetch-node.sh
 project_dir="$PWD"
 node_binary="$PWD/.deps/node/bin/node"
-app_dir="$project_dir/build/Igor VM.app"
+app_dir="$project_dir/build/igor.computer.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources" "$app_dir/Contents/Frameworks"
 swiftc -target arm64-apple-macosx13.0 -swift-version 5 -O -module-cache-path build/module-cache \
   macos/App.swift macos/Appearance.swift macos/BrowserWindows.swift macos/DesktopBar.swift macos/Pause.swift macos/WindowMode.swift macos/Setup.swift macos/SettingsGuide.swift macos/GuideView.swift macos/GuideTarget.swift macos/NotificationSetup.swift macos/SettingsReturn.swift macos/Vendor/SettingsWindowTracker.swift \
@@ -32,7 +32,7 @@ cp .deps/sparkle/LICENSE "$app_dir/Contents/Resources/Sparkle-LICENSE"
 cp macos/Vendor/PermissionFlow-LICENSE "$app_dir/Contents/Resources/"
 python3 - "$app_dir" <<'PLIST'
 import os, plistlib, sys
-info = dict(CFBundleExecutable='IgorBrowser', CFBundleIdentifier='ai.igor.browser', CFBundleName='Igor VM',
+info = dict(CFBundleExecutable='IgorBrowser', CFBundleIdentifier='ai.igor.browser', CFBundleName='igor.computer',
     CFBundleVersion=os.environ.get('IGOR_BUILD_NUMBER', '3'), CFBundleShortVersionString='0.2.0', LSUIElement=True,
     LSMinimumSystemVersion='13.0', NSAppTransportSecurity=dict(NSAllowsLocalNetworking=True, NSAllowsArbitraryLoadsInWebContent=True))
 feed, key = os.environ.get('IGOR_UPDATE_FEED'), os.environ.get('IGOR_UPDATE_PUBLIC_KEY')

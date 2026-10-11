@@ -115,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         applyNativeAppearance()
         makeApplicationMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "igor vm")
+        item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "igor.computer")
         UNUserNotificationCenter.current().delegate = self
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
         if Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") is String,
@@ -233,7 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                     } else if self.lastRequest != id {
                         self.lastRequest = id
                         let content = UNMutableNotificationContent()
-                        content.title = "igor vm needs your help"
+                        content.title = "igor.computer needs your help"
                         content.body = self.helpMessage
                         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
                             if let error = error {
@@ -274,12 +274,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
         menu.addItem(.separator())
         menu.addItem(withTitle: "server…", action: #selector(configureServer), keyEquivalent: "")
-        menu.addItem(withTitle: "quit igor vm", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: "quit igor.computer", action: #selector(quit), keyEquivalent: "q")
         for entry in menu.items where entry.action != nil && entry.target == nil { entry.target = self }
         for entry in menu.items where entry.action == nil { entry.isEnabled = false }
         if !statusMenuOpen && pauseTip?.isShown != true { item.menu = menu }
         item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (mode == "paused" ? "pause.circle" : (setupComplete ? "globe" : "exclamationmark.circle")), accessibilityDescription: state)
-        item.button?.toolTip = setupComplete ? state : "igor vm needs setup"
+        item.button?.toolTip = setupComplete ? state : "igor.computer needs setup"
         if mode != "paused" { pauseTip?.close() }
         else { schedulePauseTip() }
     }
@@ -373,7 +373,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if window != nil { return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1152, height: 800),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "igor vm · you have control"
+        window.title = "igor.computer · you have control"
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("IgorBrowserViewer")
@@ -463,7 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func showError(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "igor vm"
+        alert.messageText = "igor.computer"
         alert.informativeText = message
         alert.runModal()
     }

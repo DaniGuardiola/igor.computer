@@ -13,7 +13,7 @@ async function call(path, args, signal) {
     method: args === undefined ? 'GET' : 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Igor-Workspace': process.env.IGOR_VM_WORKSPACE || 'shared', 'X-Igor-Workspace-Label': encodeURIComponent(process.env.IGOR_VM_WORKSPACE_LABEL || process.env.IGOR_VM_WORKSPACE || 'shared') },
     ...(args === undefined ? {} : { body: JSON.stringify(args) }), signal: signal || AbortSignal.timeout(180000),
-  }).catch(error => { throw new Error(error.name === 'AbortError' ? 'Request cancelled.' : 'Igor VM server is unavailable. Check server status or its log.'); });
+  }).catch(error => { throw new Error(error.name === 'AbortError' ? 'Request cancelled.' : 'igor.computer server is unavailable. Check server status or its log.'); });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Computer service unavailable.');
   return data;

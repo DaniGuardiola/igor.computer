@@ -1,6 +1,6 @@
 {
   "apiVersion": 1,
-  "name": "Igor VM",
+  "name": "igor.computer",
   "description": "Persistent agent computer server with headed Chromium, snapshots, desktop tools and human takeover.",
   "capabilities": [
     {

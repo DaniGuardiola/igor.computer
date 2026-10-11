@@ -157,48 +157,46 @@ extension AppDelegate {
     @objc func showApps(_ sender: NSButton) {
         if appsPopover?.isShown == true { appsPopover?.close(); return }
         let controller = NSViewController()
-        let content = NSView(frame: NSRect(x: 0, y: 0, width: 290, height: CGFloat(max(1, desktopApps.count)) * 42 + 46))
-        content.appearance = NSAppearance(named: .darkAqua)
+        let rows = max(1, (desktopApps.count + 2) / 3)
+        let gridHeight = CGFloat(rows) * 100
+        let visibleHeight = min(gridHeight, 340)
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 336, height: visibleHeight + 52))
         controller.view = content
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        stack.translatesAutoresizingMaskIntoConstraints = false
         let title = NSTextField(labelWithString: "apps")
-        title.font = .systemFont(ofSize: 11, weight: .semibold)
-        title.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(title)
-        for app in desktopApps {
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        title.frame = NSRect(x: 18, y: visibleHeight + 24, width: 300, height: 18)
+        content.addSubview(title)
+        let scroll = NSScrollView(frame: NSRect(x: 16, y: 12, width: 304, height: visibleHeight))
+        scroll.hasVerticalScroller = gridHeight > visibleHeight
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = false
+        let grid = NSView(frame: NSRect(x: 0, y: 0, width: 304, height: gridHeight))
+        for (index, app) in desktopApps.enumerated() {
             guard let id = app["id"] as? String else { continue }
-            let open = AppPinButton(title: app["name"] as? String ?? id, target: self, action: #selector(openApp(_:)))
+            let name = app["name"] as? String ?? id
+            let open = AppPinButton(title: name, target: self, action: #selector(openApp(_:)))
             open.appID = id
             open.identifier = NSUserInterfaceItemIdentifier(id)
-            open.image = appImage(app)
-            open.imagePosition = .imageLeading
+            open.image = appImage(app).copy() as? NSImage
+            open.image?.size = NSSize(width: 36, height: 36)
+            open.imagePosition = .imageAbove
             open.imageScaling = .scaleProportionallyDown
             open.isBordered = false
             open.font = .systemFont(ofSize: 12, weight: .medium)
-            open.alignment = .left
-            open.widthAnchor.constraint(equalToConstant: 222).isActive = true
-            open.heightAnchor.constraint(equalToConstant: 36).isActive = true
-            open.toolTip = "open · drag to taskbar to pin"
-            let pin = BrowserHoverButton(image: NSImage(systemSymbolName: pinnedApps.contains(id) ? "pin.fill" : "pin", accessibilityDescription: "pin to taskbar")!, target: self, action: #selector(pinAppButton(_:)))
-            pin.identifier = NSUserInterfaceItemIdentifier(id)
-            pin.isBordered = false
-            pin.contentTintColor = pinnedApps.contains(id) ? .controlAccentColor : .secondaryLabelColor
-            pin.widthAnchor.constraint(equalToConstant: 30).isActive = true
-            pin.heightAnchor.constraint(equalToConstant: 30).isActive = true
-            pin.toolTip = pinnedApps.contains(id) ? "unpin from taskbar" : "pin to taskbar"
-            let row = NSStackView(views: [open, pin])
-            row.orientation = .horizontal; row.spacing = 6; row.alignment = .centerY
-            stack.addArrangedSubview(row)
+            open.alignment = .center
+            open.frame = NSRect(x: CGFloat(index % 3) * 104, y: gridHeight - CGFloat(index / 3 + 1) * 100 + 4, width: 96, height: 92)
+            open.toolTip = name + " · drag to taskbar to pin"
+            open.setAccessibilityLabel("open " + name)
+            let menu = NSMenu()
+            let pin = NSMenuItem(title: pinnedApps.contains(id) ? "unpin from taskbar" : "pin to taskbar", action: #selector(togglePin(_:)), keyEquivalent: "")
+            pin.target = self; pin.representedObject = id
+            menu.addItem(pin)
+            open.menu = menu
+            grid.addSubview(open)
         }
-        content.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 14)
-        ])
+        scroll.documentView = grid
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, gridHeight - visibleHeight)))
+        content.addSubview(scroll)
         let popover = NSPopover()
         popover.behavior = .transient
         popover.contentViewController = controller
@@ -209,7 +207,7 @@ extension AppDelegate {
                 return event
             }
         }
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
     }
     @objc func pinAppButton(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue else { return }
@@ -223,6 +221,7 @@ extension AppDelegate {
     @objc func openNewAppMenu(_ sender: NSMenuItem) { if let id = sender.representedObject as? String { launchApp(id, newWindow: true) } }
     @objc func openAppMenu(_ sender: NSMenuItem) { if let id = sender.representedObject as? String { launchApp(id) } }
     @objc func togglePin(_ sender: NSMenuItem) {
+        appsPopover?.close()
         guard let id = sender.representedObject as? String else { return }
         setPins(pinnedApps.contains(id) ? pinnedApps.filter { $0 != id } : pinnedApps + [id])
     }

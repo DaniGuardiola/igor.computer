@@ -384,7 +384,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func updateAutomationControl() {
-        window?.title = selectedWorkspace == "shared" ? "igor vm · your desktop" : mode == "human" ? "igor vm · you have control" : "igor vm · watching"
+        window?.title = selectedWorkspace == "shared" ? "igor.computer · your desktop" : mode == "human" ? "igor.computer · you have control" : "igor.computer · watching"
         let agentState = workspaceData.first(where: { $0["name"] as? String == selectedWorkspace })?["agentState"] as? String ?? "idle"
         controlModeLabel?.stringValue = selectedWorkspace == "shared" ? "your desktop" : mode == "human" ? "you have control" : "watching · " + agentState
         controlModeIcon?.contentTintColor = mode == "human" ? .systemGreen : agentState == "active" ? .systemGreen : .secondaryLabelColor
@@ -509,8 +509,8 @@ extension AppDelegate: NSToolbarDelegate {
         windowListSignature = signature
         for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
         var width: CGFloat = 0
-        if windows.isEmpty {
-            let label = NSTextField(labelWithString: unavailable ? "windows unavailable · retrying…" : "no open windows")
+        if windows.isEmpty && unavailable {
+            let label = NSTextField(labelWithString: "windows unavailable · retrying…")
             label.font = .systemFont(ofSize: 12)
             label.textColor = .secondaryLabelColor
             stack.addArrangedSubview(label)

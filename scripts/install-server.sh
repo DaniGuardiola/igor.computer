@@ -102,9 +102,9 @@ import sys
 from pathlib import Path
 path, root = sys.argv[1:]
 if any(c in root for c in '\n\r%"'): raise SystemExit('Unsupported install path.')
-Path(path).write_text('[Unit]\nDescription=Igor VM server\nAfter=network-online.target\n\n[Service]\nExecStart=/bin/bash "'+root+'/scripts/run-service.sh"\nEnvironment="PATH='+root+'/bin:/usr/local/bin:/usr/bin:/bin"\nRestart=on-failure\nRestartSec=10\n\n[Install]\nWantedBy=default.target\n')
+Path(path).write_text('[Unit]\nDescription=igor.computer server\nAfter=network-online.target\n\n[Service]\nExecStart=/bin/bash "'+root+'/scripts/run-service.sh"\nEnvironment="PATH='+root+'/bin:/usr/local/bin:/usr/bin:/bin"\nRestart=on-failure\nRestartSec=10\n\n[Install]\nWantedBy=default.target\n')
 PY
   systemctl --user daemon-reload
   systemctl --user enable --now igor-vm.service
 fi
-printf 'Igor VM server installed. Viewer can quit independently.\n'
+printf 'igor.computer server installed. Viewer can quit independently.\n'
