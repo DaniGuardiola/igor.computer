@@ -158,7 +158,7 @@ holds its last frame; the watched desktop is restored when that command ends.
 
 **Take control** waits for the current command, then gives mouse and keyboard to
 the person. Browser, shell and file tools are blocked for that workspace only.
-Other workspaces can continue browser DOM and shell/file work. Shared physical
+Other workspaces can continue browser DOM and shell/file work. Browser commands from different agents run concurrently; commands within one workspace retain a single ownership gate. Browser recovery and `new_page` create an unfocused Chromium window on the caller’s workspace, preserving shared cookies without selecting the OS desktop. Explicit `bringToFront` is suppressed for agent page selection. Explicit isolated contexts retain separate storage and are scoped by workspace. Creating their incognito window still uses the physical desktop gate because Chromium activates it despite background flags; normal shared-login pages run concurrently during human control. Shared physical
 desktop input waits until takeover ends; creating or reopening a browser window
 also needs that shared desktop lease. Existing browser contexts can be selected
 without focus when their page identity is unambiguous.
@@ -276,3 +276,5 @@ The native window and web viewer keep the taskbar below the guest display. The a
 Pin apps from the apps menu, reorder shortcuts by dragging, or drag a shortcut away to unpin. Right-click a native shortcut for open, new Chromium window, and unpin actions. Removing a shortcut never uninstalls an app. Pins persist on the server and are shared by both viewers.
 
 Workspace switching briefly fades through the selected workspace's picture and name, suppressing viewer input during the transition. Reduced-motion preferences disable the fade. Agent workspace IDs remain stable across renames; their pictures and names can be updated through authenticated `POST /workspace-profile` using the workspace header and `{label, avatar}`. `avatar` is a PNG/JPEG/WebP data URL or null; metadata updates do not wake the VM or acquire desktop control.
+
+Parallel browser acceptance check: with **your desktop** open and two existing agent workspaces, run `node tests/parallel-live.mjs <agent-workspace-id> <other-agent-workspace-id>`. It checks concurrent MCP browser actions, workspace recovery, DOM click/fill, stable personal desktop focus, and cleanup of only its own test windows.

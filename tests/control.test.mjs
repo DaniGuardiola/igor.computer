@@ -178,3 +178,40 @@ test('global pause toggles independently while a help request is pending', async
   assert.equal(control.request.id, request.id);
   assert.equal(await control.run(() => 1, 'doc'), 1);
 });
+
+
+test('independent browser clients overlap while the personal desktop is being used', async () => {
+  const control = new Control();
+  control.takeControl('shared');
+  let releaseBrowser, releaseHuman;
+  const human = control.runHuman(() => new Promise(resolve => { releaseHuman = resolve; }));
+  const first = control.run(() => new Promise(resolve => { releaseBrowser = resolve; }), 'ivo');
+  assert.equal(await control.run(() => 2, 'doc'), 2);
+  assert.equal(control.busy, true);
+  await assert.rejects(control.run(() => assert.fail(), 'ivo'), /busy/);
+  await assert.rejects(control.run(() => assert.fail(), 'shared'), /paused/);
+  await assert.rejects(control.run(() => assert.fail(), 'doc', true), /paused/);
+  releaseBrowser(); releaseHuman();
+  await Promise.all([first, human]);
+  assert.equal(control.busy, false);
+});
+
+test('takeover drains only its workspace and physical input; errors release the gate', async () => {
+  const control = new Control();
+  let release;
+  const running = control.run(() => new Promise(resolve => { release = resolve; }), 'ivo');
+  assert.equal(control.takeControl('doc').mode, 'human');
+  await assert.rejects(control.run(() => { throw new Error('failed'); }, 'nora'), /failed/);
+  assert.equal(await control.run(() => 3, 'nora'), 3);
+  release(); await running;
+  assert.equal(control.busy, false);
+});
+
+
+test('physical desktop input cannot race browser setup in another workspace', async () => {
+  const control = new Control(); let release;
+  const browser = control.run(() => new Promise(resolve => { release = resolve; }), 'ivo');
+  await assert.rejects(control.run(() => assert.fail(), 'doc', true), /busy/);
+  release(); await browser;
+  assert.equal(await control.run(() => 1, 'doc', true), 1);
+});

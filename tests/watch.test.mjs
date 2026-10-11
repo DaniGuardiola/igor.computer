@@ -38,3 +38,24 @@ test('ambiguous nonempty windows fail closed instead of showing another workspac
   watch.call = async (method, params) => method === 'Target.getTargets' ? { targetInfos: ['a','b'].map(targetId => ({ targetId, type: 'page', title: 'Page A', url: 'https://example.com' })) } : { windowId: params.targetId };
   await assert.rejects(watch.target(state, 'ivo'), /ambiguous/);
 });
+
+test('background creation moves only its own window and never activates the desktop', async () => {
+  const watch = new Watch(); let marker, closed = false;
+  watch.call = async (method, params) => {
+    if (method === 'Target.createTarget') {
+      assert.equal(params.background, true); assert.equal(params.focus, false); assert.equal(params.newWindow, true);
+      marker = params.url.match(/<title>(.*?)<\/title>/)[1]; return { targetId: 'new' };
+    }
+    if (method === 'Browser.getWindowForTarget') return { windowId: 30 };
+    if (method === 'Target.closeTarget') { assert.equal(params.targetId, 'new'); closed = true; return {}; }
+    assert.fail('Unexpected CDP method: ' + method);
+  };
+  const moved = [];
+  const opened = await watch.openBackground(async (action, args) => {
+    if (action === 'workspace_list') return { ...state, windows: [...state.windows, { id: '0x3', title: marker + ' - Chromium', desktop: 0 }] };
+    assert.equal(action, 'workspace_move'); moved.push(args); return {};
+  }, 'ivo', state);
+  assert.deepEqual(moved, [{ name: 'ivo', id: '0x3', generation: 'a' }]);
+  assert.equal(watch.windows.get('0x3'), 30);
+  await opened.close(); assert.equal(closed, true);
+});

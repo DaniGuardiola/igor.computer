@@ -28,22 +28,32 @@ export class Runtime {
     this.operation = this.wake();
     try { await this.operation; } finally { this.operation = null; }
   }
+  async health() {
+    const response = await fetch('http://127.0.0.1:18422/json/version', { signal: AbortSignal.timeout(1500) });
+    if (!response.ok || !(await response.json()).webSocketDebuggerUrl) throw new Error('Browser unavailable.');
+    await displayHealth();
+  }
   async wake() {
     this.state = 'waking'; this.error = null;
     let sleeping = false;
     try { await access(join(vmDir, 'igor-sleep.json')); sleeping = true; } catch {}
     try {
+      // A server update must not recreate a healthy guest or disturb its pages.
+      // RAM restore still follows the snapshot path below when a marker exists.
+      if (!sleeping) {
+        try {
+          await this.health();
+          this.state = 'awake'; return;
+        } catch { /* An unavailable guest needs the normal startup path. */ }
+      }
       await this.command('start-vm.sh');
       // A restored container must not be rebuilt/recreated before memory recovery.
       if (!sleeping) { await this.command('build-browser.sh'); await this.command('start-browser.sh'); }
       for (let attempt = 0; attempt < 90; attempt++) {
         try {
-          const response = await fetch('http://127.0.0.1:18422/json/version', { signal: AbortSignal.timeout(1500) });
-          if (response.ok && (await response.json()).webSocketDebuggerUrl) {
-            await displayHealth();
-            if (sleeping) await unlink(join(vmDir, 'igor-sleep.json'));
-            this.state = 'awake'; return;
-          }
+          await this.health();
+          if (sleeping) await unlink(join(vmDir, 'igor-sleep.json'));
+          this.state = 'awake'; return;
         } catch {}
         await delay(1000);
       }

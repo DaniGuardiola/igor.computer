@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { randomUUID } from 'node:crypto';
 
 // Resolve existing Chromium window identity through a read-only CDP connection.
 // Lookup never selects a tab or activates an OS workspace.
@@ -8,6 +9,7 @@ export class Watch {
     this.sequence = 0;
     this.pending = new Map();
     this.windows = new Map();
+    this.contexts = new Map();
   }
   async connect() {
     if (this.socket?.readyState === WebSocket.OPEN) return;
@@ -32,6 +34,7 @@ export class Watch {
         for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(new Error('Browser connection disconnected.')); }
         this.pending.clear();
         this.windows.clear();
+        this.contexts.clear();
       });
     })().finally(() => { this.connecting = null; });
     return this.connecting;
@@ -49,7 +52,7 @@ export class Watch {
   // visible tab titles, then retain that identity across navigation and renames.
   // Never guess across distinct windows with the same title.
   async target(state, workspace, windowId) {
-    if (this.generation !== state.generation) { this.windows.clear(); this.generation = state.generation; }
+    if (this.generation !== state.generation) { this.windows.clear(); this.contexts.clear(); this.generation = state.generation; }
     const desktop = state.workspaces.find(item => item.name === workspace)?.desktop;
     const entries = state.windows.filter(item => item.desktop === desktop && /chromium/i.test(item.app));
     const entry = windowId ? entries.find(item => item.id === windowId) : entries.find(item => item.active) || entries[0];
@@ -79,6 +82,41 @@ export class Watch {
     const tabs = grouped.get(browserId);
     const visible = tabs.filter(tab => tab.title === entry.title.replace(/ - Chromium$/, '') || (entry.title === 'about:blank - Chromium' && tab.url === 'about:blank'));
     return { ...(visible[0] || tabs[0]), window: entry };
+  }
+  // Stock Chromium has no CDP option to choose an existing OS window for a
+  // new tab. Create an unfocused window, then move it before loading user content.
+  async openBackground(computer, workspace, state, isolatedContext) {
+    if (this.generation !== state.generation) { this.windows.clear(); this.contexts.clear(); this.generation = state.generation; }
+    const marker = 'igor-target-' + randomUUID();
+    const url = 'data:text/html,<title>' + marker + '</title>';
+    let browserContextId;
+    if (isolatedContext !== undefined) {
+      const key = JSON.stringify([workspace, isolatedContext]);
+      browserContextId = this.contexts.get(key);
+      if (!browserContextId) {
+        if (this.contexts.size >= 32) throw new Error('Maximum 32 isolated browser contexts.');
+        ({ browserContextId } = await this.call('Target.createBrowserContext', { disposeOnDetach: true }));
+        this.contexts.set(key, browserContextId);
+      }
+    }
+    const { targetId } = await this.call('Target.createTarget', { url, newWindow: true, background: true, focus: false, ...(browserContextId ? { browserContextId } : {}) });
+    try {
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const current = await computer('workspace_list');
+        const entry = current.windows.find(window => window.title === marker + ' - Chromium');
+        if (entry) {
+          await computer('workspace_move', { name: workspace, id: entry.id, generation: current.generation });
+          const { windowId } = await this.call('Browser.getWindowForTarget', { targetId });
+          this.windows.set(entry.id, windowId);
+          return { url, close: () => this.call('Target.closeTarget', { targetId }) };
+        }
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error('Background browser window did not become ready.');
+    } catch (error) {
+      await this.call('Target.closeTarget', { targetId }).catch(() => {});
+      throw error;
+    }
   }
   close() { this.socket?.close(); }
 }

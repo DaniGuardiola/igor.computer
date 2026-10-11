@@ -81,3 +81,12 @@ test('snapshot restore refuses a changed QEMU version instead of losing saved st
   await assert.rejects(validateSnapshot(directory, process.execPath), /QEMU changed/);
   assert.ok(await readFile(join(directory, 'igor-sleep.json')));
 });
+
+
+test('server restart adopts a healthy guest without rebuilding or restarting Chromium', async () => {
+  const runtime = new Runtime();
+  runtime.health = async () => {};
+  runtime.command = async () => assert.fail('Healthy guest must not be rebuilt.');
+  await runtime.ready();
+  assert.equal(runtime.state, 'awake');
+});

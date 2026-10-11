@@ -4,6 +4,8 @@ export class Control {
   mode = 'agent';
   request = null;
   busy = false;
+  busyWorkspaces = new Set();
+  physicalBusy = false;
   humanBusy = false;
   automationPaused = false;
   viewerOpen = false;
@@ -40,7 +42,7 @@ export class Control {
 
   takeControl(workspace = this.viewedWorkspace) {
     if (this.humanBusy) throw new Error('Finishing a window action. Try again shortly.');
-    if (this.busy) throw new Error('Finishing a browser command. Try again shortly.');
+    if (this.isBusy(workspace)) throw new Error('Finishing a browser command. Try again shortly.');
     this.viewerOpen = true;
     this.viewedWorkspace = workspace;
     this.humanWorkspace = workspace;
@@ -102,10 +104,18 @@ export class Control {
     try { return await fn(); } finally { this.humanBusy = false; }
   }
 
+  isBusy(workspace) { return this.physicalBusy || this.busyWorkspaces.has(workspace); }
+
   async run(fn, workspace = 'shared', physical = false) {
     if ((this.takeoverWaiting && (workspace === this.takeoverWaiting || physical)) || this.automationPaused || this.mode === 'paused' || (this.mode === 'human' && (this.humanWorkspace === workspace || physical))) throw new Error('Browser is paused for human control. Wait for the user to return control.');
-    if (this.busy || this.humanBusy) throw new Error('Browser is busy. Retry after the current command completes.');
+    if (this.isBusy(workspace) || (physical && (this.busy || this.humanBusy))) throw new Error('Browser is busy. Retry after the current command completes.');
+    this.busyWorkspaces.add(workspace);
+    if (physical) this.physicalBusy = true;
     this.busy = true;
-    try { return await fn(); } finally { this.busy = false; }
+    try { return await fn(); } finally {
+      this.busyWorkspaces.delete(workspace);
+      if (physical) this.physicalBusy = false;
+      this.busy = this.busyWorkspaces.size > 0;
+    }
   }
 }

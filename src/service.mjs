@@ -79,7 +79,7 @@ async function runAgent(action, workspace = 'shared', physical = false) {
   try {
     return await control.run(async () => {
       const finishActivity = agentActivity.begin(workspace);
-      desktopRevision++;
+      if (physical) desktopRevision++;
       try {
         await persistControl();
         return await action();
@@ -88,8 +88,8 @@ async function runAgent(action, workspace = 'shared', physical = false) {
         // Restore the watched OS workspace before releasing the desktop gate.
         // Other agents' physical actions never replace the spectator's stream.
         try {
-          if (control.viewerOpen && control.mode !== 'human') await computer('workspace_select', { name: control.viewedWorkspace });
-        } finally { desktopRevision++; finishActivity(); }
+          if (physical && control.viewerOpen && control.mode !== 'human') await computer('workspace_select', { name: control.viewedWorkspace });
+        } finally { if (physical) desktopRevision++; finishActivity(); }
       }
     }, workspace, physical);
   } finally { await persistControl(); }
@@ -149,8 +149,9 @@ async function browserClient(workspace) {
   if (browserClients.has(workspace)) return browserClients.get(workspace);
   if (browserClients.size >= 32) throw new Error('Maximum 32 browser client workspaces.');
   const client = new Client({ name: 'igor-vm-' + workspace, version: '0.2.0' });
-  await client.connect(new StdioClientTransport(transportOptions));
   browserClients.set(workspace, client);
+  try { await client.connect(new StdioClientTransport(transportOptions)); }
+  catch (error) { browserClients.delete(workspace); throw error; }
   return client;
 }
 const workspaceBrowsers = new BrowserWorkspaces(computer, browserWindows, async (workspace, state, client) => {
@@ -158,9 +159,9 @@ const workspaceBrowsers = new BrowserWorkspaces(computer, browserWindows, async 
   if (!target || target.blank) return;
   const pages = await client.callTool({ name: 'list_pages', arguments: {} });
   const text = pages.content?.filter(item => item.type === 'text').map(item => item.text).join('\n') || '';
-  const matches = [...text.matchAll(/^(\d+):\s+(.*?)(?:\s+\[selected\])?$/gm)].filter(item => item[2] === target.url);
+  const matches = [...text.matchAll(/^(\d+):\s+(.*?)(?:\s+\[selected\])?$/gm)].filter(item => item[2] === target.url || item[2].endsWith(' (' + target.url + ')'));
   if (matches.length === 1) return Number(matches[0][1]);
-});
+}, (name, state, context) => watch.openBackground(computer, name, state, context));
 let nativeClientStatus;
 const tools = (await upstream.listTools()).tools;
 const computerUse = new ComputerUse();
@@ -207,7 +208,7 @@ async function openWatch(name) {
   await requireBrowser();
   await changeControl(async () => {
     const deadline = Date.now() + 120000;
-    while (control.busy || control.humanBusy) {
+    while (control.isBusy(name) || control.humanBusy) {
       if (Date.now() > deadline) throw new Error('Current desktop action is still finishing. Retry shortly.');
       await new Promise(resolve => setTimeout(resolve, 50));
     }
@@ -272,10 +273,7 @@ async function dispatch(path, args, signal, workspace = 'shared', label = worksp
       await requireBrowser();
       if (!tools.some(tool => tool.name === args.name)) throw new Error('Unknown browser tool.');
       const client = await browserClient(workspace);
-      // Recovery and new windows require shared desktop focus. Existing page
-      // DOM commands stay independent while another workspace is under control.
-      if (control.mode === 'human' && (['new_page'].includes(args.name) || args.arguments?.bringToFront)) throw new Error('Desktop input is under human control. Retry window setup after takeover ends.');
-      const recovery = args.name === 'close_page' ? undefined : await workspaceBrowsers.ensure(workspace, label, client, args.name, control.mode !== 'human');
+      const recovery = args.name === 'close_page' ? undefined : await workspaceBrowsers.ensure(workspace, label, client, args.name, args.arguments?.isolatedContext);
       let point = {};
       if (['click', 'fill', 'hover', 'drag'].includes(args.name) && typeof args.arguments?.uid === 'string') {
         try {
@@ -290,11 +288,12 @@ async function dispatch(path, args, signal, workspace = 'shared', label = worksp
         } catch { /* Activity hints must never block browser actions. */ }
       }
       recordActivity(workspace, args.name, { ...args.arguments, ...point }, { space: 'desktop' });
-      const request = recoveredRequest(args, recovery);
+      // Selecting a CDP page must not activate the shared physical desktop.
+      const request = recoveredRequest({ ...args, arguments: { ...args.arguments, ...(args.name === 'select_page' ? { bringToFront: false } : {}) } }, recovery);
       const result = await client.callTool(request, undefined, { timeout: 120000, signal });
       if (!result.isError) recordActivity(workspace, args.name, { ...args.arguments, ...point }, { space: 'desktop' });
       return result;
-    }, workspace);
+    }, workspace, args.name === 'new_page' && args.arguments?.isolatedContext !== undefined);
   }
   throw new Error('Unknown MCP route.');
 }
@@ -445,7 +444,7 @@ const server = http.createServer(async (req, res) => {
         control.takeoverWaiting = name;
         try {
           const deadline = Date.now() + 120000;
-          while (control.busy) {
+          while (control.isBusy(name)) {
             if (Date.now() > deadline) throw new Error('Current action is still finishing. Retry shortly.');
             await new Promise(resolve => setTimeout(resolve, 50));
           }
