@@ -1,5 +1,36 @@
 import AppKit
 
+// Keep the native popup and menu, with aligned avatar/title metrics.
+class WorkspacePickerCell: NSPopUpButtonCell {
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        guard let avatar = selectedItem?.image else {
+            super.drawInterior(withFrame: cellFrame, in: controlView)
+            return
+        }
+        // The rounded popup bezel extends two points below its interior center.
+        let centerY = cellFrame.midY + (controlView.isFlipped ? 2 : -2)
+        let avatarFrame = NSRect(x: cellFrame.minX + 8, y: centerY - 11, width: 22, height: 22)
+        // AppKit draws popup item images internally, bypassing drawImage.
+        // Clip that image while retaining the native title and popup arrows.
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: NSRect(x: avatarFrame.maxX + 1, y: cellFrame.minY,
+                                 width: max(0, cellFrame.maxX - avatarFrame.maxX - 1),
+                                 height: cellFrame.height)).addClip()
+        super.drawInterior(withFrame: cellFrame, in: controlView)
+        NSGraphicsContext.restoreGraphicsState()
+        avatar.draw(in: avatarFrame, from: .zero, operation: .sourceOver,
+                    fraction: isEnabled ? 1 : 0.5, respectFlipped: true, hints: nil)
+    }
+
+    override func drawTitle(_ title: NSAttributedString, withFrame frame: NSRect, in controlView: NSView) -> NSRect {
+        var spaced = frame
+        if selectedItem?.image != nil {
+            spaced.origin.x += 6
+        }
+        return super.drawTitle(title, withFrame: spaced, in: controlView)
+    }
+}
+
 class BrowserHoverButton: NSButton {
     var destructive = false
     var feedbackColor = NSColor.labelColor
@@ -143,6 +174,7 @@ extension AppDelegate: NSToolbarDelegate {
         let item = NSToolbarItem(itemIdentifier: identifier)
         if identifier == .workspaces {
             let picker = NSPopUpButton(frame: .zero, pullsDown: false)
+            picker.cell = WorkspacePickerCell(textCell: "", pullsDown: false)
             picker.bezelStyle = .rounded
             picker.font = .systemFont(ofSize: 12, weight: .medium)
             picker.target = self
