@@ -79,8 +79,18 @@ extension AppDelegate {
             }
         }
         let rounded = NSImage(size: NSSize(width: 22, height: 22), flipped: false) { rect in
+            NSGraphicsContext.saveGraphicsState()
             NSBezierPath(ovalIn: rect).addClip()
             image.draw(in: rect)
+            NSGraphicsContext.restoreGraphicsState()
+            if let state = workspace["agentState"] as? String {
+                let dot = NSRect(x: rect.maxX - 6, y: rect.minY, width: 6, height: 6)
+                let color: NSColor = state == "active" ? .systemGreen : state == "controlled" ? .systemBlue : state == "paused" ? .systemOrange : .systemGray
+                NSColor.windowBackgroundColor.setFill()
+                NSBezierPath(ovalIn: dot.insetBy(dx: -1, dy: -1)).fill()
+                color.setFill()
+                NSBezierPath(ovalIn: dot).fill()
+            }
             return true
         }
         return rounded

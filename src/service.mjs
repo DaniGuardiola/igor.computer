@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { AgentActivity } from './agent-activity.mjs';
 import { DesktopView } from './desktop-view.mjs';
 import { Watch, activity } from './watch.mjs';
 import { Desktop } from './desktop.mjs';
@@ -38,13 +39,16 @@ const control = new Control();
 const watch = new Watch();
 const desktopView = new DesktopView();
 const activities = new Map();
+const agentActivity = new AgentActivity();
 function recordActivity(workspace, name, args, extra = {}) {
   const value = activity(name, args);
   if (value) activities.set(workspace, { ...value, ...extra, at: Date.now() });
 }
 async function viewedState() {
   const state = await desktop.workspaces(await computer('workspace_list'));
-  return { ...state, workspaces: state.workspaces.map(item => ({ ...item, active: item.name === control.viewedWorkspace })) };
+  return { ...state, workspaces: state.workspaces.map(item => ({ ...item, active: item.name === control.viewedWorkspace,
+    agentState: item.personal ? null : control.humanWorkspace === item.name ? 'controlled' : control.automationPaused ? 'paused' : agentActivity.state(item.name),
+  })) };
 }
 const controlFile = join(stateDir, 'control.json');
 try {
@@ -71,15 +75,18 @@ let desktopRevision = 0;
 async function runAgent(action, workspace = 'shared', physical = false) {
   try {
     return await control.run(async () => {
+      const finishActivity = agentActivity.begin(workspace);
       desktopRevision++;
-      await persistControl();
-      try { return await action(); }
+      try {
+        await persistControl();
+        return await action();
+      }
       finally {
         // Restore the watched OS workspace before releasing the desktop gate.
         // Other agents' physical actions never replace the spectator's stream.
         try {
           if (control.viewerOpen && control.mode !== 'human') await computer('workspace_select', { name: control.viewedWorkspace });
-        } finally { desktopRevision++; }
+        } finally { desktopRevision++; finishActivity(); }
       }
     }, workspace, physical);
   } finally { await persistControl(); }

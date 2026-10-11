@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var automationSwitch: NSSwitch?
     var automationBanner: NSTextField?
     var controlButton: NSButton?
+    var controlModeLabel: NSTextField?
+    var controlModeIcon: NSImageView?
     var viewerOpen = false
     var window: NSWindow?
     var webView: WKWebView?

@@ -2,6 +2,7 @@ import AppKit
 
 // Keep native popup interaction, with one shared center for its contents.
 class WorkspacePicker: NSPopUpButton {
+    var workspaceTitles: [String: String] = [:]
     override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
 }
 
@@ -32,7 +33,8 @@ class WorkspacePickerCell: NSPopUpButtonCell {
         let color = isEnabled ? NSColor.labelColor : NSColor.secondaryLabelColor
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
-        let label = NSAttributedString(string: selectedItem?.title ?? "", attributes: [
+        let title = (controlView as? WorkspacePicker)?.workspaceTitles[selectedItem?.representedObject as? String ?? ""] ?? selectedItem?.title ?? ""
+        let label = NSAttributedString(string: title, attributes: [
             .font: font ?? NSFont.systemFont(ofSize: 12, weight: .medium),
             .foregroundColor: color, .paragraphStyle: paragraph,
         ])
@@ -52,6 +54,16 @@ class WorkspacePickerCell: NSPopUpButtonCell {
         arrows.lineJoinStyle = .round
         color.setStroke()
         arrows.stroke()
+    }
+}
+
+class WorkspaceControlGroup: NSStackView {
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.labelColor.withAlphaComponent(0.045).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
+        super.draw(dirtyRect)
     }
 }
 
@@ -294,7 +306,7 @@ extension AppDelegate: NSToolbarDelegate {
                 done.restingColor = .systemGreen
                 done.contentTintColor = .systemGreen
                 done.isBordered = false
-                done.widthAnchor.constraint(equalToConstant: 108).isActive = true
+                done.widthAnchor.constraint(equalToConstant: 124).isActive = true
                 done.heightAnchor.constraint(equalToConstant: 28).isActive = true
                 controlButton = done
                 button = done
@@ -303,7 +315,29 @@ extension AppDelegate: NSToolbarDelegate {
                 button.setAccessibilityLabel("done")
                 button.toolTip = "close this window and let your agent use the computer"
                 button.bezelStyle = .inline
-                item.label = "done"
+                let icon = NSImageView()
+                icon.image = NSImage(systemSymbolName: "eye", accessibilityDescription: nil)
+                icon.contentTintColor = .secondaryLabelColor
+                icon.widthAnchor.constraint(equalToConstant: 14).isActive = true
+                icon.heightAnchor.constraint(equalToConstant: 14).isActive = true
+                let state = NSTextField(labelWithString: "watching")
+                state.font = .systemFont(ofSize: 12, weight: .medium)
+                state.textColor = .secondaryLabelColor
+                state.setContentCompressionResistancePriority(.required, for: .horizontal)
+                let group = WorkspaceControlGroup(views: [icon, state, done])
+                group.orientation = .horizontal
+                group.alignment = .centerY
+                group.spacing = 7
+                group.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 0)
+                group.setCustomSpacing(12, after: state)
+                group.heightAnchor.constraint(equalToConstant: 28).isActive = true
+                controlModeLabel = state
+                controlModeIcon = icon
+                item.view = group
+                item.isBordered = false
+                item.label = "workspace control"
+                updateAutomationControl()
+                return item
             default: return nil
             }
             item.view = button
@@ -391,10 +425,17 @@ extension AppDelegate: NSToolbarDelegate {
         automationSwitch?.state = automationPaused ? .off : .on
         automationSwitch?.isEnabled = !pauseChangeRunning
         automationSwitch?.toolTip = automationPaused ? "resume automation for all workspaces" : "pause automation for all workspaces"
+        automationBanner?.isHidden = selectedWorkspace != "shared"
+        let agentState = workspaceData.first(where: { $0["name"] as? String == selectedWorkspace })?["agentState"] as? String ?? "idle"
+        controlModeLabel?.stringValue = selectedWorkspace == "shared" ? "your desktop" : mode == "human" ? "you have control" : "watching · " + agentState
+        controlModeIcon?.contentTintColor = mode == "human" ? .systemGreen : agentState == "active" ? .systemGreen : .secondaryLabelColor
+        controlModeLabel?.textColor = .labelColor
+        controlModeIcon?.image = NSImage(systemSymbolName: mode == "human" ? "cursorarrow" : "eye", accessibilityDescription: nil)
+        controlModeLabel?.toolTip = mode == "human" ? "this agent is paused while you control its workspace" : "live view · take control to interact"
         automationBanner?.stringValue = selectedWorkspace == "shared" ? (automationPaused ? "your desktop · automation is paused" : "your desktop · use it freely") : automationPaused ? "automation is paused" : mode == "human" ? "this workspace is paused · you have control" : "watching"
         controlButton?.isEnabled = !opening
-        controlButton?.title = mode == "human" ? "done" : "take control"
-        controlButton?.setAccessibilityLabel(mode == "human" ? "done" : "take control")
+        controlButton?.title = selectedWorkspace == "shared" ? "done" : mode == "human" ? (automationPaused ? "release control" : "resume agent") : "take control"
+        controlButton?.setAccessibilityLabel(controlButton?.title ?? "take control")
         if let button = controlButton as? BrowserHoverButton {
             button.showsCompletionMark = mode == "human"
             button.restingColor = mode == "human" ? .systemGreen : .systemBlue
@@ -402,10 +443,7 @@ extension AppDelegate: NSToolbarDelegate {
             button.contentTintColor = mode == "human" ? .systemGreen : .systemBlue
             button.needsDisplay = true
         }
-        if let group = window?.toolbar?.items.first(where: { $0.itemIdentifier == .browserActions })?.view as? NSStackView,
-           let done = group.arrangedSubviews.last as? NSButton {
-            done.toolTip = selectedWorkspace == "shared" ? "close your desktop" : mode == "human" ? "return this workspace to its agent · keep watching" : "control this workspace · pause its agent"
-        }
+        controlButton?.toolTip = selectedWorkspace == "shared" ? "close your desktop" : mode == "human" ? "resume this agent · keep watching" : "control this workspace · pause its agent"
     }
 
     func refreshBrowserWindows() {
@@ -419,6 +457,7 @@ extension AppDelegate: NSToolbarDelegate {
                 self.windowGeneration = data["generation"] as? String ?? ""
                 let workspaces = data["workspaces"] as? [[String: Any]] ?? []
                 self.renderWorkspaces(workspaces)
+                self.updateAutomationControl()
                 self.refreshApps()
                 let desktop = workspaces.first(where: { $0["active"] as? Bool == true })?["desktop"] as? Int ?? 0
                 let windows = (data["windows"] as? [[String: Any]] ?? []).filter { ($0["desktop"] as? Int) == desktop || ($0["desktop"] as? Int) == -1 }
@@ -447,13 +486,22 @@ extension AppDelegate: NSToolbarDelegate {
         let signature = ((try? JSONSerialization.data(withJSONObject: workspaces, options: [.sortedKeys]))?.base64EncodedString() ?? "") + mode
         guard signature != workspaceListSignature else { return }
         workspaceListSignature = signature
+        (picker as? WorkspacePicker)?.workspaceTitles = [:]
         picker.removeAllItems()
         for workspace in workspaces {
             if workspace["personal"] as? Bool != true, picker.numberOfItems == 1 {
                 picker.menu?.addItem(.separator())
             }
             let name = workspace["name"] as? String ?? "shared"
+            (picker as? WorkspacePicker)?.workspaceTitles[name] = workspace["label"] as? String ?? name
             picker.addItem(withTitle: workspace["label"] as? String ?? name)
+            if let agentState = workspace["agentState"] as? String {
+                let suffix = agentState == "controlled" ? "your control" : agentState
+                let label = workspace["label"] as? String ?? name
+                let title = NSMutableAttributedString(string: label, attributes: [.foregroundColor: NSColor.labelColor])
+                title.append(NSAttributedString(string: "  · " + suffix, attributes: [.foregroundColor: agentState == "active" ? NSColor.systemGreen : NSColor.secondaryLabelColor]))
+                picker.lastItem?.attributedTitle = title
+            }
             picker.lastItem?.representedObject = name
             picker.lastItem?.image = workspacePicture(workspace)
             if workspace["active"] as? Bool == true { picker.select(picker.lastItem); selectedWorkspace = name }
