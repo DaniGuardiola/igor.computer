@@ -14,6 +14,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { browserWindows } from './windows.mjs';
 import { BrowserWorkspaces, recoveredRequest } from './browser-workspace.mjs';
+import { ComputerUse, desktopTools, desktopRequest } from './computer-use.mjs';
 import { Control } from './control.mjs';
 import { nativeReadiness } from './readiness.mjs';
 
@@ -113,7 +114,9 @@ async function browserClient(workspace) {
 const workspaceBrowsers = new BrowserWorkspaces(computer, browserWindows);
 let nativeClientStatus;
 const tools = (await upstream.listTools()).tools;
-const allTools = [...tools, ...computerTools];
+const computerUse = new ComputerUse();
+const uiTools = desktopTools(JSON.parse(await readFile(join(base, 'computer-use-tools.json'), 'utf8')));
+const allTools = [...tools, ...computerTools, ...uiTools];
 const viewer = await readFile(join(base, 'viewer.html'));
 const chromiumIcon = await readFile(join(base, 'assets/chromium.png'));
 const sockets = new Set();
@@ -163,6 +166,20 @@ async function dispatch(path, args, signal, workspace = 'shared', label = worksp
     }
     await changeControl(() => control.requestHuman(args.message.trim(), args.pageId));
     return getStatus();
+  }
+  if (path === '/computer-use') {
+    if (!uiTools.some(tool => tool.name === args.name)) throw new Error('Unknown desktop tool.');
+    return runAgent(async () => {
+      await requireBrowser();
+      await computer('workspace_create', { name: workspace, ...(label !== workspace ? { label } : {}) });
+      const state = await computer('workspace_select', { name: workspace });
+      const schema = uiTools.find(tool => tool.name === args.name).inputSchema;
+      const request = desktopRequest(args, schema, state, workspace);
+      if (args.name === 'computer_ui_get_app_state' && request.arguments.window_id != null) {
+        await browserWindows('focus', { id: state.windows.find(window => parseInt(window.id, 16) === request.arguments.window_id).id, generation: state.generation });
+      }
+      return computerUse.call(workspace, state.generation, request, signal);
+    });
   }
   if (path === '/computer') {
     const { name, arguments: parameters = {} } = args;
@@ -257,6 +274,7 @@ const server = http.createServer(async (req, res) => {
       }));
     }
     if (path === '/client-status') { nativeClientStatus = { ...args, checkedAt: Date.now() }; return json(res, { ok: true }); }
+    if (path === '/computer-use') return json(res, await dispatch(path, args, undefined, workspace, label));
     if (path === '/computer') return json(res, await dispatch('/computer', args, undefined, workspace, label));
     if (path === '/request-human') return json(res, await dispatch(path, args, undefined, workspace, label));
     if (path === '/windows' && req.method === 'POST') {
@@ -310,6 +328,7 @@ async function close() {
   disconnectViewer();
   server.close();
   for (const mcp of mcpConnections) await mcp.close();
+  await computerUse.close();
   for (const client of browserClients.values()) await client.close();
   process.exit(0);
 }

@@ -3,7 +3,7 @@
 A persistent computer for your agents. One server, wherever you run it.
 
 The server owns a native-architecture QEMU Linux VM managed by Lima. Inside it,
-stock Debian Chromium, Xvfb and Openbox provide a headed desktop. Browser logins
+stock Debian 13 Chromium, Xvfb and Openbox provide a headed desktop. Browser logins
 and extensions are shared across named OS workspaces. Separate MCP workspace
 connections keep their own DevTools page selection; accounts remain shared.
 The macOS app and authenticated web viewer are clients of the same server.
@@ -92,10 +92,28 @@ computer per host; multi-user hosting needs separate hosts or isolated VM servic
 
 ## Computer tools
 
+Browser automation and desktop automation are separate APIs. Chrome DevTools
+MCP provides browser navigation, tabs, DOM/accessibility snapshots, page input
+and JavaScript through CDP. Agents should use these directly for web tasks;
+no screenshot or desktop-input step is required to navigate a page.
+
+Desktop accessibility/input uses the pinned MIT-licensed
+[computer-use-linux](https://github.com/agent-sh/computer-use-linux) v0.7.15
+backend inside the guest. `computer_ui_*` tools expose application state,
+AT-SPI trees, semantic selectors/actions, screenshots and physical input.
+The wrapper keeps ownership checks, workspace selection, window-scoped
+accessibility trees/selectors and independent client snapshot indices. Setup tools and upstream shell execution are not exposed;
+`computer_exec` remains the bounded guest shell API. Supported controls depend
+on what the application exports. Chromium's built-in accessibility is enabled;
+there is one browser process/profile and no separate per-agent login.
+
 Normal Chrome DevTools MCP tools remain available, alongside:
 
 | Tool | Purpose |
 | --- | --- |
+| `computer_ui_get_app_state`, `computer_ui_list_apps` | Desktop accessibility trees and application discovery. |
+| `computer_ui_perform_action`, `computer_ui_set_value`, `computer_ui_click` | Operate controls by accessibility identity; physical input remains available. |
+| `computer_ui_screenshot`, `computer_ui_press_key`, `computer_ui_type_text`, `computer_ui_drag`, `computer_ui_scroll` | Desktop observation and input through computer-use-linux. |
 | `computer_exec` | Bounded shell commands inside the guest as its unprivileged user. |
 | `computer_file` | Read, write or list paths inside `/workspace`; 512 KiB per transfer. |
 | `computer_workspace` | Create/select OS workspaces; open or move browser windows. |
@@ -217,3 +235,10 @@ x11vnc and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtoo
 ### Viewer workspaces
 
 The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_VM_WORKSPACE_LABEL`. Create extra named workspaces from the picker. The taskbar’s browser icon opens or focuses a browser in the selected workspace. Closing every window leaves the desktop empty; browser commands lazily reopen a window in the caller’s own workspace. Desktop and shell tools do not launch a browser. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.
+
+
+To verify the installed desktop backend, finish human control and run
+`npm run test:desktop`. This tests browser navigation/DOM independently, then
+accessibility lookup, semantic button activation, text input and PNG capture
+on a temporary task tab. Existing tabs are preserved. `scripts/catalog-computer-use.mjs`
+regenerates the checked-in upstream tool schemas from the pinned built image.

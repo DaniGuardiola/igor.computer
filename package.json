@@ -15,7 +15,8 @@
     "test:mac": "bash scripts/test-mac.sh",
     "server:install": "bash scripts/install-server.sh",
     "vm:boot": "bash scripts/start-vm.sh",
-    "test:vm": "node tests/vm-live.mjs"
+    "test:vm": "node tests/vm-live.mjs",
+    "test:desktop": "node tests/desktop-live.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",

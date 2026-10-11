@@ -35,6 +35,18 @@ try:
         time.sleep(0.05)
     else:
         raise RuntimeError('Virtual display failed to start')
+    os.makedirs(os.environ['XDG_RUNTIME_DIR'], mode=0o700, exist_ok=True)
+    start(['dbus-daemon', '--session', '--nofork', '--address=' + os.environ['DBUS_SESSION_BUS_ADDRESS']])
+    for _ in range(100):
+        if os.path.exists('/tmp/igor-session-bus'):
+            break
+        time.sleep(0.05)
+    else:
+        raise RuntimeError('Desktop session bus failed to start')
+    # Activate the standard accessibility bus before Chromium starts.
+    subprocess.check_call(['dbus-send', '--session', '--print-reply', '--dest=org.a11y.Bus',
+                           '/org/a11y/bus', 'org.a11y.Bus.GetAddress'])
+    subprocess.check_call(['gsettings', 'set', 'org.gnome.desktop.interface', 'toolkit-accessibility', 'true'])
     start(['openbox'])
     # Restore workspace count before clients place windows.
     state = '/workspace/.igor/workspaces.json'
@@ -65,7 +77,7 @@ try:
     browser_args = ['chromium', '--user-data-dir=/profile',
                      '--remote-debugging-port=9223', '--no-first-run',
                      '--no-default-browser-check', '--window-size=1440,1000',
-                     '--no-startup-window']
+                     '--no-startup-window', '--force-renderer-accessibility']
     def launch_browser():
         process = start(browser_args)
         with open('/tmp/igor-browser-generation.tmp', 'w') as file:

@@ -31,3 +31,20 @@ Hold computer_begin_turn with a unique turnId while working, then release it wit
 The viewer starts on the independent user workspace. Your client workspace is named for your agent in Igor; other MCP clients may choose any workspace. Use computer_workspace to list, create or select desktops and open a browser window there. Workspaces share the computer and browser profile, not account isolation. Preserve windows in other workspaces.
 
 Browser commands automatically reopen a missing browser window in your client workspace and select its new tab. Closing windows does not reopen them automatically. Existing page IDs can become stale after closure; refresh list_pages before reusing them. Desktop and shell tools do not launch a browser. The viewer’s browser icon opens or focuses a browser in the selected workspace.
+
+
+## Browser API and desktop API
+
+For browser work, use the Chrome DevTools tools directly: list_pages, new_page,
+navigate_page, take_snapshot, evaluate_script and page input tools. These use
+CDP and are independent of desktop screenshots, accessibility and physical input.
+Keep Lightpanda first for compatible tasks. Do not use desktop clicks to navigate
+web pages when a browser tool can perform the same operation.
+
+For browser chrome or another desktop application's controls, use
+computer_ui_get_app_state to inspect the AT-SPI accessibility tree, then
+computer_ui_perform_action or computer_ui_set_value when the control supports it.
+Refresh app state before reusing snapshot element indices. computer_ui_click,
+computer_ui_press_key, computer_ui_type_text, computer_ui_drag and
+computer_ui_scroll provide physical-input fallback. These tools select your
+workspace under the same ownership gate. Shared browser logins remain shared.

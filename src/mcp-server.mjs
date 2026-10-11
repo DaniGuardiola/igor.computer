@@ -33,6 +33,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
         });
       } while (Date.now() < deadline);
       result = { ...result, outcome: result.request?.outcome || 'waiting' };
+    } else if (req.params.name.startsWith('computer_ui_')) {
+      return await call('/computer-use', req.params, extra.signal);
     } else if (req.params.name.startsWith('computer_')) {
       result = await call('/computer', req.params, extra.signal);
       if (req.params.name === 'computer_screenshot') return { content: [{ type: 'image', data: result.data, mimeType: result.mimeType }] };
