@@ -1,6 +1,6 @@
 import AppKit
 
-private final class BrowserHoverButton: NSButton {
+class BrowserHoverButton: NSButton {
     var destructive = false
     var feedbackColor = NSColor.labelColor
     var restingColor: NSColor?
@@ -274,35 +274,56 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func configureAutomationBanner(_ window: NSWindow) {
-        guard let toolbar = window.toolbar,
-              let launcher = self.toolbar(toolbar, itemForItemIdentifier: .browserLauncher, willBeInsertedIntoToolbar: false)?.view,
+        guard let toolbar = window.toolbar, let content = window.contentView,
               let tasks = self.toolbar(toolbar, itemForItemIdentifier: .browserWindows, willBeInsertedIntoToolbar: false)?.view else { return }
-        let label = NSTextField(labelWithString: "automation is paused while this window is open")
+        let menu = BrowserHoverButton(image: NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: "apps")!, target: self, action: #selector(showApps(_:)))
+        configureBrowserIcon(menu)
+        menu.toolTip = "apps · open or pin to taskbar"
+        appMenuButton = menu
+        let pins = AppPinStrip()
+        pins.orientation = .horizontal
+        pins.alignment = .centerY
+        pins.spacing = 4
+        pins.setContentHuggingPriority(.required, for: .horizontal)
+        pins.onDrop = { [weak self] id, index in self?.movePin(id, to: index) }
+        pinStripWidth = pins.widthAnchor.constraint(equalToConstant: 34)
+        pinStripWidth?.isActive = true
+        appPins = pins
+        let label = NSTextField(labelWithString: "automation paused while open")
         label.font = .systemFont(ofSize: 11)
         label.textColor = .secondaryLabelColor
+        label.alignment = .right
+        label.setContentHuggingPriority(.required, for: .horizontal)
         let separator = NSBox()
         separator.boxType = .separator
         separator.widthAnchor.constraint(equalToConstant: 1).isActive = true
         separator.heightAnchor.constraint(equalToConstant: 20).isActive = true
-        let row = NSStackView(views: [launcher, separator, tasks, label])
+        let row = NSStackView(views: [menu, pins, separator, tasks, label])
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 12
+        row.spacing = 10
         label.setContentCompressionResistancePriority(.required, for: .horizontal)
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 900, height: 42))
+        let view = NSVisualEffectView()
+        view.material = .headerView
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.translatesAutoresizingMaskIntoConstraints = false
         row.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(view)
         view.addSubview(row)
         NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            row.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            view.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            view.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            view.heightAnchor.constraint(equalToConstant: 48),
+            row.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            row.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
             row.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
-        let accessory = NSTitlebarAccessoryViewController()
-        accessory.view = view
-        accessory.layoutAttribute = .bottom
-        window.addTitlebarAccessoryViewController(accessory)
+        desktopBar = view
         automationBanner = label
         updateAutomationControl()
+        refreshApps()
     }
 
     func updateAutomationControl() {
@@ -327,9 +348,15 @@ extension AppDelegate: NSToolbarDelegate {
                 self.windowGeneration = data["generation"] as? String ?? ""
                 let workspaces = data["workspaces"] as? [[String: Any]] ?? []
                 self.renderWorkspaces(workspaces)
+                self.refreshApps()
                 let desktop = workspaces.first(where: { $0["active"] as? Bool == true })?["desktop"] as? Int ?? 0
                 let windows = (data["windows"] as? [[String: Any]] ?? []).filter { ($0["desktop"] as? Int) == desktop || ($0["desktop"] as? Int) == -1 }
+                self.currentDesktopWindows = windows
                 self.renderBrowserWindows(windows)
+                for button in self.appPins?.arrangedSubviews.compactMap({ $0 as? AppPinButton }) ?? [] {
+                    let key = String(button.appID.dropLast(".desktop".count)).lowercased()
+                    button.running = windows.contains { ($0["app"] as? String ?? "").lowercased().contains(key) }
+                }
                 if self.browserNeedsFocus, let target = windows.first(where: { $0["active"] as? Bool == true }) ?? windows.first,
                    let id = target["id"] as? String {
                     self.browserNeedsFocus = false
@@ -345,7 +372,8 @@ extension AppDelegate: NSToolbarDelegate {
 
     func renderWorkspaces(_ workspaces: [[String: Any]]) {
         guard let picker = workspacePicker else { return }
-        let signature = String(describing: workspaces)
+        workspaceData = workspaces
+        let signature = (try? JSONSerialization.data(withJSONObject: workspaces, options: [.sortedKeys]))?.base64EncodedString() ?? ""
         guard signature != workspaceListSignature else { return }
         workspaceListSignature = signature
         picker.removeAllItems()
@@ -353,6 +381,7 @@ extension AppDelegate: NSToolbarDelegate {
             let name = workspace["name"] as? String ?? "shared"
             picker.addItem(withTitle: workspace["label"] as? String ?? name)
             picker.lastItem?.representedObject = name
+            picker.lastItem?.image = workspacePicture(workspace)
             if workspace["active"] as? Bool == true { picker.select(picker.lastItem); selectedWorkspace = name }
         }
         picker.menu?.addItem(.separator())
@@ -377,11 +406,17 @@ extension AppDelegate: NSToolbarDelegate {
             guard !label.isEmpty else { workspaceListSignature = ""; refreshBrowserWindows(); return }
             args = ["action": "create", "name": "workspace-" + UUID().uuidString.lowercased(), "label": label]
         }
+        if name == selectedWorkspace { return }
+        if let workspace = workspaceData.first(where: { $0["name"] as? String == name }),
+           let data = try? JSONSerialization.data(withJSONObject: workspace), let json = String(data: data, encoding: .utf8) {
+            webView?.evaluateJavaScript("window.workspaceTransition?.begin(" + json + ")")
+        } else { webView?.evaluateJavaScript("window.workspaceTransition?.begin()") }
         windowActionRunning = true
         sender.isEnabled = false
         request("/workspaces", post: true, arguments: args) { result in
             self.windowActionRunning = false
             self.workspaceListSignature = ""
+            self.webView?.evaluateJavaScript("window.workspaceTransition?.end()")
             if case .failure(let error) = result { self.showError(error.localizedDescription) }
             self.refreshBrowserWindows()
         }

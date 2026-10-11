@@ -242,3 +242,11 @@ To verify the installed desktop backend, finish human control and run
 accessibility lookup, semantic button activation, text input and PNG capture
 on a temporary task tab. Existing tabs are preserved. `scripts/catalog-computer-use.mjs`
 regenerates the checked-in upstream tool schemas from the pinned built image.
+
+### Desktop taskbar and workspace pictures
+
+The native window and web viewer keep the taskbar below the guest display. The apps menu discovers visible graphical `.desktop` applications installed in the guest; infrastructure such as the VNC server is excluded. Chromium uses the existing persistent profile and opens or focuses its window in the selected workspace.
+
+Pin apps from the apps menu, reorder shortcuts by dragging, or drag a shortcut away to unpin. Right-click a native shortcut for open, new Chromium window, and unpin actions. Removing a shortcut never uninstalls an app. Pins persist on the server and are shared by both viewers.
+
+Workspace switching briefly fades through the selected workspace's picture and name, suppressing viewer input during the transition. Reduced-motion preferences disable the fade. Agent workspace IDs remain stable across renames; their pictures and names can be updated through authenticated `POST /workspace-profile` using the workspace header and `{label, avatar}`. `avatar` is a PNG/JPEG/WebP data URL or null; metadata updates do not wake the VM or acquire desktop control.

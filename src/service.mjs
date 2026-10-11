@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { Desktop } from './desktop.mjs';
 import { stateDir, origin, host, port } from './config.mjs';
 import { Runtime } from './runtime.mjs';
 import { computer, computerBusy, displayAuthorization, displayHealth } from './guest.mjs';
@@ -30,6 +31,7 @@ catch (error) {
   token = randomBytes(32).toString('hex');
   await writeFile(tokenFile, token, { mode: 0o600, flag: 'wx' });
 }
+const desktop = new Desktop(stateDir);
 const control = new Control();
 const controlFile = join(stateDir, 'control.json');
 try {
@@ -146,7 +148,7 @@ async function body(req) {
   let data = '';
   for await (const chunk of req) {
     data += chunk;
-    if (Buffer.byteLength(data) > 1024 * 1024) throw new Error('Request too large.');
+    if (Buffer.byteLength(data) > (req.url === '/workspace-profile' ? 16 : 1) * 1024 * 1024) throw new Error('Request too large.');
   }
   return data ? JSON.parse(data) : {};
 }
@@ -256,11 +258,19 @@ const server = http.createServer(async (req, res) => {
     }
     if (path === '/workspaces' && req.method === 'GET') {
       if (control.mode !== 'human') throw new Error('Open the computer to manage workspaces.');
-      return json(res, await computer('workspace_list'));
+      return json(res, await desktop.workspaces(await computer('workspace_list')));
+    }
+    if (path === '/apps' && req.method === 'GET') {
+      if (control.mode !== 'human') throw new Error('Open the computer to manage apps.');
+      return json(res, await desktop.catalog());
     }
     if (path === '/tools' && req.method === 'GET') return json(res, { tools: allTools });
     if (req.method !== 'POST') return json(res, { error: 'Not found.' }, 404);
     const args = await body(req);
+    if (path === '/workspace-profile') return json(res, await desktop.profile(workspace, args));
+    if (path === '/apps') {
+      return json(res, await control.runHuman(() => args.action === 'pin' ? desktop.pin(args.pins) : args.action === 'launch' ? desktop.launch(args.id, args.newWindow === true) : Promise.reject(new Error('Unknown app action.'))));
+    }
     if (path === '/workspaces') {
       if (!['select', 'create', 'open_browser'].includes(args.action)) throw new Error('Unknown workspace action.');
       return json(res, await control.runHuman(async () => {

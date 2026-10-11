@@ -14,10 +14,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var automationBanner: NSTextField?
     var window: NSWindow?
     var webView: WKWebView?
+    var desktopBar: NSView?
+    var appPins: AppPinStrip?
+    var pinStripWidth: NSLayoutConstraint?
+    var appMenuButton: NSButton?
+    var appsPopover: NSPopover?
+    var appMenuKeyMonitor: Any?
+    var desktopApps: [[String: Any]] = []
+    var pinnedApps: [String] = []
+    var currentDesktopWindows: [[String: Any]] = []
+    var appSignature = ""
+    var appsLoading = false
     var windowStrip: NSScrollView?
     var workspacePicker: NSPopUpButton?
     var workspaceListSignature = ""
     var selectedWorkspace = "shared"
+    var workspaceData: [[String: Any]] = []
     var windowChips: NSStackView?
     var windowListSignature = ""
     var windowGeneration = ""
@@ -360,13 +372,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         configureAutomationBanner(window)
         // Constrain the browser area, not the outer frame including its toolbar.
         let displayRatio = NSSize(width: 1440, height: 1000)
-        window.contentAspectRatio = displayRatio
-        window.contentMinSize = NSSize(width: 640, height: 640 * displayRatio.height / displayRatio.width)
+        // The bottom taskbar has a fixed height; resize the desktop independently.
+        window.contentMinSize = NSSize(width: 640, height: 640 * displayRatio.height / displayRatio.width + 48)
         let toolbarHeight = window.frame.height - window.contentLayoutRect.height
         let available = (window.screen ?? NSScreen.main)?.visibleFrame.size ?? NSSize(width: 1440, height: 1000)
         let width = min(window.contentLayoutRect.width, available.width,
-                        max(1, available.height - toolbarHeight) * displayRatio.width / displayRatio.height)
-        window.setContentSize(NSSize(width: width, height: width * displayRatio.height / displayRatio.width))
+                        max(1, available.height - toolbarHeight - 48) * displayRatio.width / displayRatio.height)
+        window.setContentSize(NSSize(width: width, height: width * displayRatio.height / displayRatio.width + 48))
         window.center()
         window.standardWindowButton(.closeButton)?.toolTip = "close this window · follow the automation setting"
         let web = WKWebView()
@@ -377,10 +389,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             web.topAnchor.constraint(equalTo: view.topAnchor),
             web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            web.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            web.bottomAnchor.constraint(equalTo: desktopBar!.topAnchor)
         ])
         self.window = window
         self.webView = web
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        guard sender === window else { return frameSize }
+        let chrome = sender.frame.height - sender.contentLayoutRect.height
+        return NSSize(width: frameSize.width, height: frameSize.width * 1000 / 1440 + 48 + chrome)
     }
 
     @objc func finish() { closeBrowserViewer() }
