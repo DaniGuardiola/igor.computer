@@ -394,9 +394,6 @@ extension AppDelegate: NSToolbarDelegate {
         for workspace in workspaces {
             if workspace["personal"] as? Bool != true, picker.numberOfItems == 1 {
                 picker.menu?.addItem(.separator())
-                let heading = NSMenuItem(title: "agents", action: nil, keyEquivalent: "")
-                heading.isEnabled = false
-                picker.menu?.addItem(heading)
             }
             let name = workspace["name"] as? String ?? "shared"
             picker.addItem(withTitle: workspace["label"] as? String ?? name)
