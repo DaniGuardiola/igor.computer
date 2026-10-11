@@ -24,7 +24,7 @@ class WorkspacePickerCell: NSPopUpButtonCell {
         let centerY = frame.midY
         var titleX = frame.minX + 12
         if let avatar = selectedItem?.image {
-            let avatarFrame = NSRect(x: frame.minX + 8, y: centerY - 11, width: 22, height: 22)
+            let avatarFrame = NSRect(x: frame.minX + (frame.height - 22) / 2, y: centerY - 11, width: 22, height: 22)
             avatar.draw(in: avatarFrame, from: .zero, operation: .sourceOver,
                         fraction: isEnabled ? 1 : 0.5, respectFlipped: true, hints: nil)
             titleX = avatarFrame.maxX + 8
