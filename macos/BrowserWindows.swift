@@ -182,8 +182,6 @@ private extension NSToolbarItem.Identifier {
     static let workspaces = Self("workspaces")
     static let browserWindows = Self("browserWindows")
     static let browserActions = Self("browserActions")
-    static let restoreWindows = Self("restoreWindows")
-    static let hideBrowser = Self("hideBrowser")
     static let returnToAgent = Self("returnToAgent")
 }
 
@@ -235,15 +233,13 @@ extension AppDelegate: NSToolbarDelegate {
             item.label = "browser"
             item.isBordered = false
         } else if identifier == .browserActions {
-            let controls: [NSToolbarItem.Identifier] = [.restoreWindows, .hideBrowser, .returnToAgent]
+            let controls: [NSToolbarItem.Identifier] = [.returnToAgent]
             let views = controls.compactMap { self.toolbar(toolbar, itemForItemIdentifier: $0, willBeInsertedIntoToolbar: false)?.view }
             let group = NSStackView(views: views)
             group.orientation = .horizontal
             group.alignment = .centerY
             group.distribution = .fill
             group.spacing = 10
-            // The reset glyph sits inside a wider hit target; compensate visually.
-            if let reset = views.first { group.setCustomSpacing(4, after: reset) }
             group.heightAnchor.constraint(equalToConstant: 28).isActive = true
             item.view = group
             item.isBordered = false
@@ -275,30 +271,6 @@ extension AppDelegate: NSToolbarDelegate {
         } else {
             let button: NSButton
             switch identifier {
-            case .restoreWindows:
-                button = BrowserHoverButton(image: NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "restore windows")!, target: self, action: #selector(restoreBrowserWindows))
-                button.toolTip = "restore and maximize windows"
-                configureBrowserIcon(button)
-                item.label = "restore"
-            case .hideBrowser:
-                let toggle = NSSwitch()
-                toggle.target = self
-                toggle.action = #selector(togglePause)
-                toggle.controlSize = .mini
-                toggle.setAccessibilityLabel("automation")
-                let label = NSTextField(labelWithString: "automation")
-                label.font = .systemFont(ofSize: 11, weight: .medium)
-                label.textColor = .secondaryLabelColor
-                let group = NSStackView(views: [label, toggle])
-                group.orientation = .horizontal
-                group.alignment = .centerY
-                group.spacing = 5
-                automationSwitch = toggle
-                updateAutomationControl()
-                item.view = group
-                item.isBordered = false
-                item.label = "automation"
-                return item
             case .returnToAgent:
                 let done = BrowserHoverButton(title: "done", target: self, action: #selector(finish))
                 done.showsCompletionMark = true
@@ -420,11 +392,6 @@ extension AppDelegate: NSToolbarDelegate {
 
     func updateAutomationControl() {
         window?.title = selectedWorkspace == "shared" ? "igor vm · your desktop" : mode == "human" ? "igor vm · you have control" : "igor vm · watching"
-        if let group = window?.toolbar?.items.first(where: { $0.itemIdentifier == .browserActions })?.view as? NSStackView,
-           let restore = group.arrangedSubviews.first as? NSButton { restore.isEnabled = mode == "human" }
-        automationSwitch?.state = automationPaused ? .off : .on
-        automationSwitch?.isEnabled = !pauseChangeRunning
-        automationSwitch?.toolTip = automationPaused ? "resume automation for all workspaces" : "pause automation for all workspaces"
         automationBanner?.isHidden = selectedWorkspace != "shared"
         let agentState = workspaceData.first(where: { $0["name"] as? String == selectedWorkspace })?["agentState"] as? String ?? "idle"
         controlModeLabel?.stringValue = selectedWorkspace == "shared" ? "your desktop" : mode == "human" ? "you have control" : "watching · " + agentState

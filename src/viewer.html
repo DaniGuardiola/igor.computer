@@ -11,7 +11,7 @@
 
 .control-group{display:flex;align-items:center;gap:12px;padding-left:10px;border-radius:9px;background:#ffffff08}#ownership{font-weight:600;white-space:nowrap}#done{color:#74acff;background:#4998ff20}#done.controlling{color:#68d88b;background:#40b76a20}.agent-status{margin-left:auto;font-size:11px;color:#9da4ad}.agent-status.active{color:#68d88b}
 </style>
-<header><strong>igor vm</strong><button id="workspace-button" aria-label="switch workspace">your desktop</button><select hidden id="workspaces" aria-label="workspace"><option>your desktop</option></select><span class="spacer"></span><button id="restore" title="restore windows" aria-label="restore windows">↺</button><label>automation<input id="automation" type="checkbox" checked></label><div class="control-group"><span id="ownership">watching</span><button id="done">take control</button></div></header>
+<header><strong>igor vm</strong><button id="workspace-button" aria-label="switch workspace">your desktop</button><select hidden id="workspaces" aria-label="workspace"><option>your desktop</option></select><span class="spacer"></span><button id="view-menu" aria-label="window options" title="window options">⋯</button><div class="control-group"><span id="ownership">watching</span><button id="done">take control</button></div></header>
 <div id="screen"><div id="message"><p id="detail">connecting to your computer…</p><form id="login" hidden><input id="token" type="password" autocomplete="off" placeholder="server credential" aria-label="server credential"><button>connect</button></form><button id="open" hidden>take control</button></div></div>
 <div class="taskbar"><button id="app-menu" title="apps" aria-label="apps">⊞</button><div id="pins"></div><button hidden id="open-browser" title="open or focus chromium in this workspace" aria-label="open chromium"><img src="/assets/chromium.png" alt=""></button><span class="divider"></span><div id="windows"></div><span class="spacer"></span></div>
 <script type="module">
@@ -41,18 +41,17 @@ async function refreshFrame(){
  try{const frame=await rpc('/watch-frame');if(status?.mode==='human'||status?.viewedWorkspace!==workspace||frame.profile?.name!==workspace)return;preview.hidden=false;if(frame.data){preview.src='data:image/jpeg;base64,'+frame.data;preview.dataset.workspace=workspace;message.style.display='none'}else if(preview.dataset.workspace!==workspace){preview.removeAttribute('src');detail.textContent='waiting for this desktop…';message.style.display='flex'}renderActivity(frame)}catch(error){detail.textContent=error.message;message.style.display='flex'}finally{frameRunning=false;frameTimer=setTimeout(refreshFrame,200)}
 }
 function updateOwnership(value){
- status=value;document.querySelector('#automation').checked=!value.automationPaused;
+ status=value;
  document.querySelector('#done').textContent=value.viewedWorkspace==='shared'?'✓ done':value.mode==='human'?(value.automationPaused?'✓ release control':'✓ resume agent'):'take control';
  document.querySelector('#done').classList.toggle('controlling',value.mode==='human');
  document.querySelector('#ownership').textContent=value.viewedWorkspace==='shared'?(value.automationPaused?'your desktop · automation is paused':'your desktop · use it freely'):value.mode==='human'?'you have control':'watching · '+(windowState?.workspaces.find(w=>w.name===value.viewedWorkspace)?.agentState||'idle');
  screen.classList.toggle('watching',value.mode!=='human');
- document.querySelector('#restore').disabled=value.mode!=='human';
 }
 window.refreshOwnership=async()=>{updateOwnership(await rpc('/status'));await connect()};
 const screen=document.querySelector('#screen');
 const cover=document.createElement('div');cover.className='workspace-cover';cover.setAttribute('aria-hidden','true');screen.append(cover);
 function dismissPopup(){popup?.remove();popup=null}
-document.addEventListener('pointerdown',event=>{if(popup&&!popup.contains(event.target)&&!event.target.closest('#app-menu,#workspace-button'))dismissPopup()});
+document.addEventListener('pointerdown',event=>{if(popup&&!popup.contains(event.target)&&!event.target.closest('#app-menu,#workspace-button,#view-menu'))dismissPopup()});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')dismissPopup()});
 function picture(workspace){if(workspace.personal)return document.createDocumentFragment();const node=document.createElement(workspace.avatar?'img':'span');if(workspace.avatar){node.src=workspace.avatar;node.alt=''}else{node.className='initial';node.textContent=(workspace.label||'user').slice(0,1).toUpperCase()}return node}
 function workspaceLabel(workspace){const label=document.createElement('span');label.textContent=workspace.label;return label}
@@ -91,7 +90,7 @@ async function windowAction(action,id){try{await rpc("/windows",{action,id,gener
 document.querySelector("#workspaces").onchange=event=>selectWorkspace(event.target.value);
 document.querySelector("#open-browser").onclick=async()=>{try{await rpc("/workspaces",{action:"open_browser",name:document.querySelector("#workspaces").value,reuse:true});await refreshWindows()}catch(error){showError(error)}};
 
-document.querySelector("#restore").onclick=()=>windowAction("restore");
+document.querySelector('#view-menu').onclick=event=>{const menu=makePopup(event.currentTarget);const item=document.createElement('button');item.className='launch';item.textContent='restore windows';item.disabled=status?.mode!=='human';item.onclick=()=>{dismissPopup();void windowAction('restore')};menu.append(item)};
 async function rpc(path, args) {
   const response = await fetch(path, { method: args === undefined ? 'GET' : 'POST', ...(args === undefined ? {} : { headers: {'Content-Type':'application/json'}, body: JSON.stringify(args) }) });
   const result = await response.json();
@@ -127,7 +126,6 @@ async function connect(token) {
 function showError(error) { message.style.display='flex'; detail.textContent=error.message; }
 document.querySelector('#login').addEventListener('submit',async event=>{event.preventDefault();const input=document.querySelector('#token');const token=input.value;input.value='';try{await connect(token)}catch(error){showError(error);document.querySelector('#login').hidden=false}});
 document.querySelector('#open').onclick=async()=>{const button=document.querySelector('#open');button.disabled=true;detail.textContent='waking your computer…';try{await rpc('/take-control',{});await connect()}catch(error){showError(error)}finally{button.disabled=false}};
-document.querySelector('#automation').onchange=async event=>{try{await rpc('/automation-pause',{paused:!event.target.checked})}catch(error){event.target.checked=!event.target.checked;showError(error)}};
 document.querySelector('#done').onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{if(status.mode==='human'&&status.viewedWorkspace==='shared'){updateOwnership(await rpc('/close-viewer',{}));rfb?.disconnect();preview.hidden=true;clearInterval(interval);clearTimeout(frameTimer);detail.textContent='your desktop is closed';message.style.display='flex';document.querySelector('#open').hidden=false}else{await rpc(status.mode==='human'?'/release-control':'/take-control',{});await connect()}}catch(error){showError(error)}finally{button.disabled=false}};
 const token=location.hash.slice(1);
 history.replaceState(null,'',location.pathname+location.search);

@@ -27,6 +27,11 @@ extension AppDelegate {
         let windowItem = NSMenuItem(title: "window", action: nil, keyEquivalent: "")
         let windowMenu = NSMenu(title: "window")
         windowMenu.addItem(withTitle: "close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowMenu.addItem(.separator())
+        let restore = NSMenuItem(title: "restore windows", action: #selector(restoreBrowserWindows), keyEquivalent: "")
+        restore.target = self
+        restore.toolTip = "maximize windows in this workspace"
+        windowMenu.addItem(restore)
         windowItem.submenu = windowMenu
         main.addItem(windowItem)
         NSApp.mainMenu = main
@@ -45,6 +50,15 @@ extension AppDelegate {
             browser.deminiaturize(nil)
             browser.makeKeyAndOrderFront(nil)
         } else { showSetup() }
+        return true
+    }
+}
+
+extension AppDelegate: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(restoreBrowserWindows) {
+            return viewerOpen && window?.isKeyWindow == true && mode == "human" && !windowActionRunning
+        }
         return true
     }
 }

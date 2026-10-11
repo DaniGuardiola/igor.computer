@@ -10,7 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var statusMenuOpen = false
     var pauseChangeRunning = false
     var automationPaused = false
-    var automationSwitch: NSSwitch?
     var automationBanner: NSTextField?
     var controlButton: NSButton?
     var controlModeLabel: NSTextField?
@@ -387,7 +386,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                         max(1, available.height - toolbarHeight - 48) * displayRatio.width / displayRatio.height)
         window.setContentSize(NSSize(width: width, height: width * displayRatio.height / displayRatio.width + 48))
         window.center()
-        window.standardWindowButton(.closeButton)?.toolTip = "close this window · follow the automation setting"
+        window.standardWindowButton(.closeButton)?.toolTip = "close this window"
         let web = WKWebView()
         web.navigationDelegate = self
         web.translatesAutoresizingMaskIntoConstraints = false
@@ -534,7 +533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             if self.terminationPending { NSApp.reply(toApplicationShouldTerminate: true) }
             else { NSApp.terminate(nil) }
         }
-        // Viewer exit follows its automation toggle. Server and VM stay independent.
+        // Viewer exit releases this workspace. Server and VM stay independent.
         if viewerOpen || mode == "human" {
             request("/close-viewer", post: true) { result in
                 if case .failure(let error) = result {
