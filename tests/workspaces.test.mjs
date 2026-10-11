@@ -54,3 +54,34 @@ windows.run = enumeration
 assert windows.windows()[0]['title'] == 'Terminal'
 `], { stdio: 'pipe', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
 });
+
+
+test('saved workspace beyond Openbox defaults restores desktops before selection', () => {
+  execFileSync('python3', ['-c', `
+import sys, tempfile, json
+from pathlib import Path
+sys.path.insert(0, 'container')
+import computer
+with tempfile.TemporaryDirectory() as directory:
+ computer.STATE = Path(directory)
+ (computer.STATE / 'workspaces.json').write_text(json.dumps({'shared': 0, 'doc': 4}))
+ active, count, pending = [0], [4], [False]
+ commands = []
+ def run(*args):
+  commands.append(args)
+  if args[:2] == ('wmctrl', '-n'): pending[0] = True
+  if args[:2] == ('wmctrl', '-d'):
+   if pending[0]: count[0] = 5; pending[0] = False
+   return '\\n'.join(str(i)+' '+('*' if i == active[0] else '-')+' desktop' for i in range(count[0]))
+  if args[:2] == ('wmctrl', '-s') and int(args[2]) < count[0]: active[0] = int(args[2])
+  return ''
+ computer.run = run
+ computer.generation = lambda: 'g'
+ computer.windows = lambda: []
+ result = computer.workspace('workspace_select', {'name': 'doc'})
+ assert result['workspaces'][1]['active']
+ assert commands.index(('wmctrl', '-n', '5')) < commands.index(('wmctrl', '-s', '4'))
+ computer.workspace('workspace_list', {})
+ assert commands.count(('wmctrl', '-n', '5')) == 1
+`], { stdio: 'pipe', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
+});

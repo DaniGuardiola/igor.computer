@@ -44,7 +44,10 @@ try:
                 with open(state) as file:
                     count = max(json.load(file).values()) + 1
                 subprocess.check_call(['wmctrl', '-n', str(count)])
-                break
+                actual = subprocess.check_output(['wmctrl', '-d'], text=True).splitlines()
+                if len(actual) >= count:
+                    break
+                time.sleep(0.1)
             except subprocess.SubprocessError:
                 time.sleep(0.1)
     start(['x11vnc', '-display', ':99', '-localhost', '-nopw', '-forever',

@@ -49,10 +49,27 @@ def workspace(action, args):
         temporary = labels_file.with_suffix('.tmp')
         temporary.write_text(json.dumps(labels))
         temporary.replace(labels_file)
+    # Saved workspace ids outlive Openbox's default desktop count. X11 requests
+    # are asynchronous, so verify the count instead of trusting wmctrl's exit.
+    required = max(data.values()) + 1
+    if len(run('wmctrl', '-d').splitlines()) < required:
+        run('wmctrl', '-n', str(required))
+        for _ in range(50):
+            if len(run('wmctrl', '-d').splitlines()) >= required:
+                break
+            time.sleep(0.02)
+        else:
+            raise ValueError('Window manager could not restore saved workspaces.')
     if action != 'workspace_list' and name not in data:
         raise ValueError('Create the workspace first.')
     if action == 'workspace_select':
         run('wmctrl', '-s', str(data[name]))
+        for _ in range(50):
+            if any(line.split()[0] == str(data[name]) and line.split()[1] == '*' for line in run('wmctrl', '-d').splitlines()):
+                break
+            time.sleep(0.02)
+        else:
+            raise ValueError('Window manager could not switch workspace.')
     if action == 'workspace_move':
         identifier = args.get('id')
         if args.get('generation') != generation():
