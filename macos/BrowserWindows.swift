@@ -338,44 +338,52 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func configureAutomationBanner(_ window: NSWindow) {
-        guard let toolbar = window.toolbar, let content = window.contentView,
-              let tasks = self.toolbar(toolbar, itemForItemIdentifier: .browserWindows, willBeInsertedIntoToolbar: false)?.view else { return }
+        guard let content = window.contentView else { return }
         let menu = BrowserHoverButton(image: NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: "apps")!, target: self, action: #selector(showApps(_:)))
         configureBrowserIcon(menu)
-        menu.toolTip = "apps · open or pin to taskbar"
+        menu.toolTip = "apps · drag an app to the dock to pin"
         appMenuButton = menu
         let pins = AppPinStrip()
         pins.orientation = .horizontal
         pins.alignment = .centerY
-        pins.spacing = 4
-        pins.setContentHuggingPriority(.required, for: .horizontal)
+        pins.spacing = 6
         pins.onDrop = { [weak self] id, index in self?.movePin(id, to: index) }
-        pinStripWidth = pins.widthAnchor.constraint(equalToConstant: 34)
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false; scroll.hasHorizontalScroller = true
+        scroll.scrollerStyle = .overlay; scroll.autohidesScrollers = true
+        scroll.documentView = pins
+        scroll.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        pinStripWidth = scroll.widthAnchor.constraint(equalToConstant: 38)
+        pinStripWidth?.priority = .defaultHigh
         pinStripWidth?.isActive = true
         appPins = pins
         let separator = NSBox()
         separator.boxType = .separator
         separator.widthAnchor.constraint(equalToConstant: 1).isActive = true
-        separator.heightAnchor.constraint(equalToConstant: 20).isActive = true
-        let row = NSStackView(views: [menu, pins, separator, tasks])
+        separator.heightAnchor.constraint(equalToConstant: 22).isActive = true
+        let row = NSStackView(views: [menu, separator, scroll])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 10
-        let view = NSVisualEffectView()
-        view.material = .headerView
-        view.blendingMode = .withinWindow
-        view.state = .active
+        let view = DockSurface()
+        view.onAppDrop = { [weak self, weak pins] id, location in
+            guard let self = self, let pins = pins else { return }
+            let point = pins.convert(location, from: nil)
+            let index = pins.arrangedSubviews.firstIndex(where: { point.x < $0.frame.midX }) ?? self.pinnedApps.count
+            self.movePin(id, to: index)
+        }
         view.translatesAutoresizingMaskIntoConstraints = false
         row.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(view)
         view.addSubview(row)
         NSLayoutConstraint.activate([
-            view.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            view.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            scroll.widthAnchor.constraint(lessThanOrEqualTo: content.widthAnchor, constant: -110),
+            view.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            view.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -8),
             view.heightAnchor.constraint(equalToConstant: 48),
-            row.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            row.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            view.widthAnchor.constraint(lessThanOrEqualTo: content.widthAnchor, constant: -24),
+            row.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            row.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             row.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
         desktopBar = view
@@ -420,11 +428,7 @@ extension AppDelegate: NSToolbarDelegate {
                 let desktop = workspaces.first(where: { $0["active"] as? Bool == true })?["desktop"] as? Int ?? 0
                 let windows = (data["windows"] as? [[String: Any]] ?? []).filter { ($0["desktop"] as? Int) == desktop || ($0["desktop"] as? Int) == -1 }
                 self.currentDesktopWindows = windows
-                self.renderBrowserWindows(windows)
-                for button in self.appPins?.arrangedSubviews.compactMap({ $0 as? AppPinButton }) ?? [] {
-                    let key = String(button.appID.dropLast(".desktop".count)).lowercased()
-                    button.running = windows.contains { ($0["app"] as? String ?? "").lowercased().contains(key) }
-                }
+                self.renderPins()
                 if self.browserNeedsFocus, let target = windows.first(where: { $0["active"] as? Bool == true }) ?? windows.first,
                    let id = target["id"] as? String {
                     self.browserNeedsFocus = false
@@ -469,6 +473,7 @@ extension AppDelegate: NSToolbarDelegate {
 
     @objc func selectWorkspace(_ sender: NSPopUpButton) {
         dismissAppLauncher()
+        dismissDockWindows()
         guard let name = sender.selectedItem?.representedObject as? String, !windowActionRunning else { return }
         let args: [String: Any] = ["action": "select", "name": name]
         if name == selectedWorkspace { return }
@@ -582,6 +587,7 @@ extension AppDelegate: NSToolbarDelegate {
     @objc func focusBrowserWindow(_ sender: NSButton) { browserWindowButtonAction("focus", sender: sender) }
     @objc func closeBrowserWindow(_ sender: NSButton) { browserWindowButtonAction("close", sender: sender) }
     func browserWindowButtonAction(_ action: String, sender: NSButton) {
+        dismissDockWindows()
         guard let parts = sender.identifier?.rawValue.split(separator: ":"), parts.count == 2 else { return }
         browserWindowAction(action, id: String(parts[0]), generation: String(parts[1]))
     }

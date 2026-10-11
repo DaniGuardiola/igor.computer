@@ -26,6 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var pinStripWidth: NSLayoutConstraint?
     var appMenuButton: NSButton?
     var appLauncher: NSView?
+    var dockWindowPanel: NSView?
+    var dockWindowApp = ""
+    var dockPanelSticky = false
+    var dockPanelMonitor: Any?
+    var dockSignature = ""
     var appMenuKeyMonitor: Any?
     var desktopApps: [[String: Any]] = []
     var pinnedApps: [String] = []
@@ -383,13 +388,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         configureAutomationBanner(window)
         // Constrain the browser area, not the outer frame including its toolbar.
         let displayRatio = NSSize(width: 1440, height: 1000)
-        // The bottom taskbar has a fixed height; resize the desktop independently.
-        window.contentMinSize = NSSize(width: 640, height: 640 * displayRatio.height / displayRatio.width + 48)
+        // The dock overlays the desktop without changing the guest screen ratio.
+        window.contentMinSize = NSSize(width: 640, height: 640 * displayRatio.height / displayRatio.width)
         let toolbarHeight = window.frame.height - window.contentLayoutRect.height
         let available = (window.screen ?? NSScreen.main)?.visibleFrame.size ?? NSSize(width: 1440, height: 1000)
         let width = min(window.contentLayoutRect.width, available.width,
-                        max(1, available.height - toolbarHeight - 48) * displayRatio.width / displayRatio.height)
-        window.setContentSize(NSSize(width: width, height: width * displayRatio.height / displayRatio.width + 48))
+                        max(1, available.height - toolbarHeight) * displayRatio.width / displayRatio.height)
+        window.setContentSize(NSSize(width: width, height: width * displayRatio.height / displayRatio.width))
         window.center()
         window.standardWindowButton(.closeButton)?.toolTip = "close this window"
         let web = WKWebView()
@@ -400,16 +405,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             web.topAnchor.constraint(equalTo: view.topAnchor),
             web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            web.bottomAnchor.constraint(equalTo: desktopBar!.topAnchor)
+            web.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         self.window = window
         self.webView = web
+        view.addSubview(desktopBar!, positioned: .above, relativeTo: web)
     }
 
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
         guard sender === window else { return frameSize }
         let chrome = sender.frame.height - sender.contentLayoutRect.height
-        return NSSize(width: frameSize.width, height: frameSize.width * 1000 / 1440 + 48 + chrome)
+        return NSSize(width: frameSize.width, height: frameSize.width * 1000 / 1440 + chrome)
     }
 
     @objc func finish() {
@@ -452,6 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func hideWindow() {
         dismissAppLauncher()
+        dismissDockWindows()
         webView?.loadHTMLString("", baseURL: nil)
         window?.orderOut(nil)
         updateWindowMode()
