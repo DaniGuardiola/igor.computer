@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Control } from '../src/control.mjs';
 
-test('human request blocks automation before the viewer opens; completion restores control', async () => {
+test('human request alone does not block automation; explicit takeover does', async () => {
   const control = new Control();
   const request = control.requestHuman('Sign in to the test site.', 1).request;
-  await assert.rejects(control.run(() => assert.fail('Must not run')), /paused/);
+  assert.equal(await control.run(() => 'still working'), 'still working');
   control.takeControl();
   await assert.rejects(control.run(() => assert.fail('Must not run')), /paused/);
   control.resume();
@@ -20,7 +20,7 @@ test('viewer cannot obtain control before an in-flight command drains', async ()
   const command = control.run(() => new Promise(resolve => { release = resolve; }));
   control.requestHuman('Complete verification.');
   assert.throws(() => control.takeControl(), /Finishing/);
-  await assert.rejects(control.run(() => 1), /paused/);
+  await assert.rejects(control.run(() => 1), /busy/);
   release();
   await command;
   assert.equal(control.takeControl().mode, 'human');
@@ -133,4 +133,48 @@ test('closing while paused leaves a human request waiting until automation resum
   control.setAutomationPaused(false);
   assert.equal(control.request.outcome, 'continued');
   assert.equal(control.mode, 'agent');
+});
+
+
+test('watching never blocks agents; takeover only blocks its workspace and physical input', async () => {
+  const control = new Control();
+  control.watch('ivo');
+  assert.equal(control.mode, 'agent');
+  assert.equal(await control.run(() => 1, 'ivo'), 1);
+  control.takeControl('ivo');
+  await assert.rejects(control.run(() => assert.fail(), 'ivo'), /paused/);
+  assert.equal(await control.run(() => 2, 'doc'), 2);
+  await assert.rejects(control.run(() => assert.fail(), 'doc', true), /paused/);
+  control.release();
+  assert.equal(control.viewerOpen, true);
+  assert.equal(control.viewedWorkspace, 'ivo');
+  assert.equal(await control.run(() => 3, 'ivo'), 3);
+  control.takeControl('ivo');
+  control.watch('doc');
+  assert.equal(control.humanWorkspace, null);
+  assert.equal(await control.run(() => 4, 'ivo'), 4);
+});
+
+test('global pause applies across workspaces and survives leaving takeover', async () => {
+  const control = new Control();
+  control.watch('ivo'); control.takeControl('ivo'); control.setAutomationPaused(true);
+  await assert.rejects(control.run(() => assert.fail(), 'doc'), /paused/);
+  control.release();
+  assert.equal(control.mode, 'paused');
+  control.closeViewer();
+  assert.equal(control.viewerOpen, false);
+  assert.equal(control.automationPaused, true);
+});
+
+
+test('global pause toggles independently while a help request is pending', async () => {
+  const control = new Control();
+  const request = control.requestHuman('Sign in.', 1, 'ivo').request;
+  control.setAutomationPaused(true);
+  assert.equal(control.mode, 'pending');
+  await assert.rejects(control.run(() => assert.fail(), 'doc'), /paused/);
+  control.setAutomationPaused(false);
+  assert.equal(request.outcome, null);
+  assert.equal(control.request.id, request.id);
+  assert.equal(await control.run(() => 1, 'doc'), 1);
 });

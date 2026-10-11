@@ -2,7 +2,7 @@ import AppKit
 
 extension AppDelegate {
     @objc func togglePause() {
-        guard !pauseChangeRunning, ["agent", "paused", "human"].contains(mode) else { return }
+        guard !pauseChangeRunning, ["agent", "paused", "human", "pending"].contains(mode) else { return }
         pauseChangeRunning = true
         updateAutomationControl()
         request("/automation-pause", post: true, arguments: ["paused": !automationPaused]) { result in

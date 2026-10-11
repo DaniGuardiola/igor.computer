@@ -6,13 +6,21 @@ export function pageIds(result) {
 
 export class BrowserWorkspaces {
   prepared = new Set();
-  constructor(computer, windows) { this.computer = computer; this.windows = windows; }
-  async ensure(name, label, client, tool) {
+  constructor(computer, windows, resolvePage) { this.computer = computer; this.windows = windows; this.resolvePage = resolvePage; }
+  async ensure(name, label, client, tool, allowFocus = true) {
     const state = await this.computer('workspace_create', { name, ...(label !== name ? { label } : {}) });
     const desktop = state.workspaces.find(workspace => workspace.name === (name === 'user' ? 'shared' : name))?.desktop;
     const entries = state.windows.filter(window => window.desktop === desktop && /chromium/i.test(window.app));
     const call = (name, args = {}) => client.callTool({ name, arguments: args }, undefined, { timeout: 120000 });
     let recovery;
+    if (entries.length && !this.prepared.has(name) && this.resolvePage) {
+      const pageId = await this.resolvePage(name, state, client).catch(() => undefined);
+      if (pageId !== undefined) {
+        const selected = await call('select_page', { pageId });
+        if (!selected.isError) this.prepared.add(name);
+      }
+    }
+    if ((!entries.length || !this.prepared.has(name) || tool === 'new_page') && !allowFocus) throw new Error('Desktop input is under human control. Retry browser window setup after takeover ends.');
     if (!entries.length) {
       const before = new Set(pageIds(await call('list_pages')));
       await this.computer('workspace_open_browser', { name, reuse: true });

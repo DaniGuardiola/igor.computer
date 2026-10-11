@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var automationPaused = false
     var automationSwitch: NSSwitch?
     var automationBanner: NSTextField?
+    var controlButton: NSButton?
+    var viewerOpen = false
     var window: NSWindow?
     var webView: WKWebView?
     var desktopBar: NSView?
@@ -207,15 +209,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                     self.runtimeIssues = ["the browser is still starting. open the log if it does not become ready."]
                 }
             case .success(let status):
-                let previousMode = self.mode
                 self.mode = status["mode"] as? String ?? "agent"
                 self.automationPaused = status["automationPaused"] as? Bool ?? false
+                self.viewerOpen = status["viewerOpen"] as? Bool ?? false
+                self.selectedWorkspace = status["viewedWorkspace"] as? String ?? self.selectedWorkspace
                 self.updateAutomationControl()
                 let runtime = status["runtime"] as? [String: Any] ?? [:]
                 self.runtimeReady = runtime["ready"] as? Bool ?? false
                 self.runtimeIssues = runtime["issues"] as? [String] ?? []
                 if self.runtimeReady { self.startupError = nil; self.startupStarted = nil }
-                if previousMode == "human" && self.mode != "human" { self.hideWindow() }
+                if !self.viewerOpen && self.window?.isVisible == true { self.hideWindow() }
                 if self.mode == "pending", let request = status["request"] as? [String: Any], let id = request["id"] as? String {
                     self.helpMessage = request["message"] as? String ?? "your ai needs your help."
                     if !self.notificationReady || self.notificationError != nil {
@@ -255,7 +258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if !setupComplete { menu.addItem(withTitle: "finish setup…", action: #selector(showSetup), keyEquivalent: "") }
         menu.addItem(.separator())
         let pause = menu.addItem(withTitle: automationPaused ? "resume automation" : "pause automation", action: #selector(togglePause), keyEquivalent: "")
-        pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human"].contains(mode))
+        pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human", "pending"].contains(mode))
         menu.autoenablesItems = false
         menu.addItem(withTitle: "open computer", action: #selector(showBrowser), keyEquivalent: "")
         menu.addItem(withTitle: "settings…", action: #selector(showSetup), keyEquivalent: ",")
@@ -306,13 +309,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     @objc func showBrowser() {
         guard !opening else { return }
         opening = true
-        request("/take-control", post: true) { result in
+        request(CommandLine.arguments.contains("--type-test") ? "/take-control" : "/watch", post: true) { result in
             self.opening = false
             switch result {
             case .failure(let error): self.runtimeIssues = [error.localizedDescription]; self.showSetup(); self.renderSetup()
             case .success(let status):
                 self.automationPaused = status["automationPaused"] as? Bool ?? false
-                self.mode = "human"
+                self.mode = status["mode"] as? String ?? "agent"
+                self.viewerOpen = true
+                self.selectedWorkspace = status["viewedWorkspace"] as? String ?? "shared"
                 self.makeWindow()
                 guard let token = self.token else { return }
                 self.webView?.load(URLRequest(url: URL(string: self.origin + "/viewer?native=1#" + token)!))
@@ -320,7 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 NSApp.activate(ignoringOtherApps: true)
                 self.window?.makeKeyAndOrderFront(nil)
                 self.updateMenu()
-                self.browserNeedsFocus = true
+                self.browserNeedsFocus = false
                 self.refreshBrowserWindows()
                 if CommandLine.arguments.contains("--type-test") {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
@@ -401,7 +406,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         return NSSize(width: frameSize.width, height: frameSize.width * 1000 / 1440 + 48 + chrome)
     }
 
-    @objc func finish() { closeBrowserViewer() }
+    @objc func finish() {
+        guard !opening else { return }
+        opening = true
+        controlButton?.isEnabled = false
+        request(mode == "human" ? "/release-control" : "/take-control", post: true, arguments: ["name": selectedWorkspace]) { result in
+            self.opening = false
+            self.updateAutomationControl()
+            switch result {
+            case .failure(let error): self.showError(error.localizedDescription)
+            case .success(let status):
+                self.mode = status["mode"] as? String ?? self.mode
+                self.viewerOpen = true
+                self.updateAutomationControl()
+                self.webView?.evaluateJavaScript("window.refreshOwnership?.()")
+                self.refreshBrowserWindows()
+                self.updateMenu()
+            }
+        }
+    }
     @objc func hideBrowser() { closeBrowserViewer() }
 
     func closeBrowserViewer() {
@@ -411,6 +434,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             case .success(let status):
                 self.mode = status["mode"] as? String ?? self.mode
                 self.automationPaused = status["automationPaused"] as? Bool ?? false
+                self.viewerOpen = false
                 self.hideWindow()
                 self.updateMenu()
                 if self.mode == "paused" { self.schedulePauseTip(force: true) }
@@ -508,7 +532,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             else { NSApp.terminate(nil) }
         }
         // Viewer exit follows its automation toggle. Server and VM stay independent.
-        if mode == "human" {
+        if viewerOpen || mode == "human" {
             request("/close-viewer", post: true) { result in
                 if case .failure(let error) = result {
                     self.quitting = false

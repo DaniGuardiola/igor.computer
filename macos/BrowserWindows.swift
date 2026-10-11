@@ -237,8 +237,9 @@ extension AppDelegate: NSToolbarDelegate {
                 done.restingColor = .systemGreen
                 done.contentTintColor = .systemGreen
                 done.isBordered = false
-                done.widthAnchor.constraint(equalToConstant: 78).isActive = true
+                done.widthAnchor.constraint(equalToConstant: 108).isActive = true
                 done.heightAnchor.constraint(equalToConstant: 28).isActive = true
+                controlButton = done
                 button = done
                 button.font = .systemFont(ofSize: 12, weight: .medium)
                 button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
@@ -327,22 +328,35 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func updateAutomationControl() {
+        window?.title = mode == "human" ? "igor vm · you have control" : "igor vm · watching"
+        if let group = window?.toolbar?.items.first(where: { $0.itemIdentifier == .browserActions })?.view as? NSStackView,
+           let restore = group.arrangedSubviews.first as? NSButton { restore.isEnabled = mode == "human" }
         automationSwitch?.state = automationPaused ? .off : .on
         automationSwitch?.isEnabled = !pauseChangeRunning
-        automationSwitch?.toolTip = automationPaused ? "automation stays paused after you close this window" : "automation resumes after you close this window"
-        automationBanner?.stringValue = automationPaused ? "automation is paused · stays paused after closing" : "automation is paused while this window is open"
+        automationSwitch?.toolTip = automationPaused ? "resume automation for all workspaces" : "pause automation for all workspaces"
+        automationBanner?.stringValue = automationPaused ? "automation is paused" : mode == "human" ? "this workspace is paused · you have control" : "watching"
+        controlButton?.isEnabled = !opening
+        controlButton?.title = mode == "human" ? "done" : "take control"
+        controlButton?.setAccessibilityLabel(mode == "human" ? "done" : "take control")
+        if let button = controlButton as? BrowserHoverButton {
+            button.showsCompletionMark = mode == "human"
+            button.restingColor = mode == "human" ? .systemGreen : .systemBlue
+            button.feedbackColor = mode == "human" ? .systemGreen : .systemBlue
+            button.contentTintColor = mode == "human" ? .systemGreen : .systemBlue
+            button.needsDisplay = true
+        }
         if let group = window?.toolbar?.items.first(where: { $0.itemIdentifier == .browserActions })?.view as? NSStackView,
            let done = group.arrangedSubviews.last as? NSButton {
-            done.toolTip = automationPaused ? "close this window · keep automation paused" : "close this window · resume automation"
+            done.toolTip = mode == "human" ? "return this workspace to its agent · keep watching" : "control this workspace · pause its agent"
         }
     }
 
     func refreshBrowserWindows() {
-        guard mode == "human", window?.isVisible == true, !windowListRunning, !windowActionRunning else { return }
+        guard viewerOpen, window?.isVisible == true, !windowListRunning, !windowActionRunning else { return }
         windowListRunning = true
         request("/workspaces") { result in
             self.windowListRunning = false
-            guard self.mode == "human", self.window?.isVisible == true, !self.windowActionRunning else { return }
+            guard self.viewerOpen, self.window?.isVisible == true, !self.windowActionRunning else { return }
             switch result {
             case .success(let data):
                 self.windowGeneration = data["generation"] as? String ?? ""
@@ -373,7 +387,7 @@ extension AppDelegate: NSToolbarDelegate {
     func renderWorkspaces(_ workspaces: [[String: Any]]) {
         guard let picker = workspacePicker else { return }
         workspaceData = workspaces
-        let signature = (try? JSONSerialization.data(withJSONObject: workspaces, options: [.sortedKeys]))?.base64EncodedString() ?? ""
+        let signature = ((try? JSONSerialization.data(withJSONObject: workspaces, options: [.sortedKeys]))?.base64EncodedString() ?? "") + mode
         guard signature != workspaceListSignature else { return }
         workspaceListSignature = signature
         picker.removeAllItems()
@@ -386,6 +400,7 @@ extension AppDelegate: NSToolbarDelegate {
         }
         picker.menu?.addItem(.separator())
         picker.addItem(withTitle: "new workspace…")
+        picker.lastItem?.isEnabled = mode == "human"
         picker.lastItem?.representedObject = "__new"
         picker.isEnabled = true
     }
@@ -416,7 +431,8 @@ extension AppDelegate: NSToolbarDelegate {
         request("/workspaces", post: true, arguments: args) { result in
             self.windowActionRunning = false
             self.workspaceListSignature = ""
-            self.webView?.evaluateJavaScript("window.workspaceTransition?.end()")
+            self.webView?.evaluateJavaScript("window.refreshOwnership?.(); window.workspaceTransition?.end()")
+            self.poll()
             if case .failure(let error) = result { self.showError(error.localizedDescription) }
             self.refreshBrowserWindows()
         }
@@ -435,7 +451,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func renderBrowserWindows(_ windows: [[String: Any]], unavailable: Bool = false) {
-        let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? "", $0["app"] ?? ""] }) + String(unavailable) + windowGeneration
+        let signature = String(describing: windows.map { [$0["id"] ?? "", $0["title"] ?? "", $0["app"] ?? ""] }) + String(unavailable) + windowGeneration + mode
         guard let stack = windowChips else { return }
         if signature == windowListSignature {
             updateBrowserWindowSelection(windows)
@@ -463,6 +479,7 @@ extension AppDelegate: NSToolbarDelegate {
             focus.imageScaling = .scaleProportionallyDown
             focus.bezelStyle = .inline
             focus.isBordered = false
+            focus.isEnabled = mode == "human"
             focus.setButtonType(.momentaryChange)
             focus.state = entry["active"] as? Bool == true ? .on : .off
             focus.font = .systemFont(ofSize: 12, weight: .medium)
@@ -479,6 +496,7 @@ extension AppDelegate: NSToolbarDelegate {
             close.isBordered = false
             close.toolTip = "close " + title
             close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+            close.isEnabled = mode == "human"
             close.destructive = true
             close.contentTintColor = .secondaryLabelColor
             close.widthAnchor.constraint(equalToConstant: 28).isActive = true
@@ -520,7 +538,7 @@ extension AppDelegate: NSToolbarDelegate {
     @objc func restoreBrowserWindows() { browserWindowAction("restore") }
 
     func browserWindowAction(_ action: String, id: String? = nil, generation: String? = nil) {
-        guard mode == "human", !windowActionRunning else { return }
+        guard viewerOpen, mode == "human", !windowActionRunning else { return }
         windowActionRunning = true
         var arguments: [String: Any] = ["action": action, "generation": generation ?? windowGeneration]
         if let id = id { arguments["id"] = id }

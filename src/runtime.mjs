@@ -69,7 +69,7 @@ export class Runtime {
     return next;
   }
   async sleep(control) {
-    if (this.operation || control.busy || control.humanBusy || !['agent', 'paused'].includes(control.mode) || this.turns.size) throw new Error('Cannot sleep during a turn, computer action or human takeover.');
+    if (this.operation || control.busy || control.humanBusy || control.viewerOpen || !['agent', 'paused'].includes(control.mode) || this.turns.size) throw new Error('Cannot sleep during a turn, computer action or human takeover.');
     if (this.state === 'sleeping') return this.status();
     if (this.state !== 'awake') throw new Error('Computer is not awake.');
     this.state = 'saving';
@@ -111,7 +111,7 @@ export class Runtime {
     await this.ready();
   }
   async idle(control) {
-    if (idleSeconds && this.state === 'awake' && Date.now() - this.lastUsed >= idleSeconds * 1000 && !this.operation && !this.turns.size && !control.busy && !control.humanBusy && ['agent', 'paused'].includes(control.mode)) {
+    if (idleSeconds && this.state === 'awake' && Date.now() - this.lastUsed >= idleSeconds * 1000 && !this.operation && !this.turns.size && !control.busy && !control.humanBusy && !control.viewerOpen && ['agent', 'paused'].includes(control.mode)) {
       await this.sleep(control);
     }
   }

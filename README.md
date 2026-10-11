@@ -121,7 +121,7 @@ Normal Chrome DevTools MCP tools remain available, alongside:
 | `computer_begin_turn`, `computer_end_turn` | Protect an entire turn from idle sleep, including gaps between tools. |
 | `computer_sleep`, `computer_wake` | Save/stop and restore RAM plus disk. |
 | `browser_status` | Ownership, lifecycle, active turn IDs and human help. |
-| `browser_request_human`, `browser_wait_human` | Pause and hand the same computer to a person. |
+| `browser_request_human`, `browser_wait_human` | Request help in the same workspace and wait for explicit takeover. |
 
 Desktop actions serialize through one ownership gate. Pixel actions select the
 calling client's workspace within that gate. Workspaces organize windows;
@@ -138,18 +138,32 @@ tool calls.
 
 ## Human control
 
-Choose **open computer** or **take control** in the web viewer. All agent browser,
-shell, file and pixel tools stop before human interaction begins. A command
-already running must finish first. The native frame and web toolbar can focus,
-close and restore guest application windows. Closing every window leaves the
-desktop empty. The browser launcher or the next agent browser command opens a
-window in the selected or calling workspace, preserving the shared profile.
+**Open computer** opens a read-only live desktop of the selected workspace,
+including Chromium's window frame, dialogs and the OS background. Watching does
+not pause its agent. Desktop captures validate the selected OS workspace before
+and after capture. While another workspace uses shared physical input, the view
+holds its last frame; the watched desktop is restored when that command ends.
 
-**automation** independently chooses whether automation can resume after closing.
-**done** returns control following that setting. The native app explains a paused
-close with a tip at its menu icon. Closing a web tab without **done** leaves the
-computer under human control; reopen the viewer to finish. It never silently
-resumes because a network connection disappeared.
+**Take control** waits for the current command, then gives mouse and keyboard to
+the person. Browser, shell and file tools are blocked for that workspace only.
+Other workspaces can continue browser DOM and shell/file work. Shared physical
+desktop input waits until takeover ends; creating or reopening a browser window
+also needs that shared desktop lease. Existing browser contexts can be selected
+without focus when their page identity is unambiguous.
+
+**Done** releases takeover and returns to watching. Switching workspaces also
+releases takeover and opens the next workspace read-only. Closing the native
+window releases takeover and hides the viewer. The **automation** toggle is a
+separate global pause, preserved when releasing or closing. The app explains a
+paused close with a tip at its menu icon. Closing a web tab without **done**
+retains ownership; reopen it to finish. Network disconnects never silently resume
+input. Read-only previews cannot open an input-capable VNC connection.
+
+Agent action hints show the existing workspace avatar and name, a cursor/click
+hint at known target coordinates, typing indicators and recognized shortcuts.
+Typed text, credentials, selectors, URLs and scripts are excluded from this
+activity metadata. Hints fade after inactivity. Pins can be edited while
+watching; launching, focusing, closing or restoring applications requires takeover.
 
 An agent asks for help with a short message and optional page ID, then waits on
 the returned request ID. A connected native client can notify the user. Otherwise

@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { DesktopView } from './desktop-view.mjs';
+import { Watch, activity } from './watch.mjs';
 import { Desktop } from './desktop.mjs';
 import { stateDir, origin, host, port } from './config.mjs';
 import { Runtime } from './runtime.mjs';
@@ -33,6 +35,17 @@ catch (error) {
 }
 const desktop = new Desktop(stateDir);
 const control = new Control();
+const watch = new Watch();
+const desktopView = new DesktopView();
+const activities = new Map();
+function recordActivity(workspace, name, args, extra = {}) {
+  const value = activity(name, args);
+  if (value) activities.set(workspace, { ...value, ...extra, at: Date.now() });
+}
+async function viewedState() {
+  const state = await desktop.workspaces(await computer('workspace_list'));
+  return { ...state, workspaces: state.workspaces.map(item => ({ ...item, active: item.name === control.viewedWorkspace })) };
+}
 const controlFile = join(stateDir, 'control.json');
 try {
   const previous = JSON.parse(await readFile(controlFile, 'utf8'));
@@ -54,15 +67,30 @@ function persistControl() {
   controlWrites = next.catch(() => {});
   return next;
 }
-async function runAgent(action) {
-  try { return await control.run(async () => { await persistControl(); return action(); }); }
-  finally { await persistControl(); }
+let desktopRevision = 0;
+async function runAgent(action, workspace = 'shared', physical = false) {
+  try {
+    return await control.run(async () => {
+      desktopRevision++;
+      await persistControl();
+      try { return await action(); }
+      finally {
+        // Restore the watched OS workspace before releasing the desktop gate.
+        // Other agents' physical actions never replace the spectator's stream.
+        try {
+          if (control.viewerOpen && control.mode !== 'human') await computer('workspace_select', { name: control.viewedWorkspace });
+        } finally { desktopRevision++; }
+      }
+    }, workspace, physical);
+  } finally { await persistControl(); }
 }
 await persistControl();
 let transitions = Promise.resolve();
 function changeControl(action) {
   const next = transitions.then(async () => {
-    const status = action();
+    desktopRevision++;
+    let status;
+    try { status = await action(); } finally { desktopRevision++; }
     try { await persistControl(); } catch (error) { control.mode = 'paused'; throw error; }
     return status;
   });
@@ -113,7 +141,14 @@ async function browserClient(workspace) {
   browserClients.set(workspace, client);
   return client;
 }
-const workspaceBrowsers = new BrowserWorkspaces(computer, browserWindows);
+const workspaceBrowsers = new BrowserWorkspaces(computer, browserWindows, async (workspace, state, client) => {
+  const target = await watch.target(state, workspace);
+  if (!target || target.blank) return;
+  const pages = await client.callTool({ name: 'list_pages', arguments: {} });
+  const text = pages.content?.filter(item => item.type === 'text').map(item => item.text).join('\n') || '';
+  const matches = [...text.matchAll(/^(\d+):\s+(.*?)(?:\s+\[selected\])?$/gm)].filter(item => item[2] === target.url);
+  if (matches.length === 1) return Number(matches[0][1]);
+});
 let nativeClientStatus;
 const tools = (await upstream.listTools()).tools;
 const computerUse = new ComputerUse();
@@ -156,6 +191,24 @@ function disconnectViewer() {
   for (const socket of sockets) socket.destroy();
   sockets.clear();
 }
+async function openWatch(name) {
+  await requireBrowser();
+  await changeControl(async () => {
+    const deadline = Date.now() + 120000;
+    while (control.busy || control.humanBusy) {
+      if (Date.now() > deadline) throw new Error('Current desktop action is still finishing. Retry shortly.');
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    control.humanBusy = true;
+    try {
+      const state = await computer('workspace_list');
+      if (!state.workspaces.some(item => item.name === name)) throw new Error('Unknown workspace.');
+      disconnectViewer();
+      await computer('workspace_select', { name });
+    } finally { control.humanBusy = false; }
+    return control.watch(name);
+  });
+}
 async function dispatch(path, args, signal, workspace = 'shared', label = workspace) {
   if (path === '/status') return getStatus();
   if (path === '/tools') return { tools: allTools };
@@ -164,9 +217,9 @@ async function dispatch(path, args, signal, workspace = 'shared', label = worksp
     if (typeof args.message !== 'string' || !args.message.trim() || args.message.length > 300) throw new Error('Provide a short human-help message.');
     if (args.pageId !== undefined) {
       if (!Number.isInteger(args.pageId)) throw new Error('Invalid page ID.');
-      await runAgent(async () => (await browserClient(workspace)).callTool({ name: 'select_page', arguments: { pageId: args.pageId, bringToFront: true } }));
+      await runAgent(async () => (await browserClient(workspace)).callTool({ name: 'select_page', arguments: { pageId: args.pageId } }), workspace);
     }
-    await changeControl(() => control.requestHuman(args.message.trim(), args.pageId));
+    await changeControl(() => control.requestHuman(args.message.trim(), args.pageId, workspace));
     return getStatus();
   }
   if (path === '/computer-use') {
@@ -180,22 +233,24 @@ async function dispatch(path, args, signal, workspace = 'shared', label = worksp
       if (args.name === 'computer_ui_get_app_state' && request.arguments.window_id != null) {
         await browserWindows('focus', { id: state.windows.find(window => parseInt(window.id, 16) === request.arguments.window_id).id, generation: state.generation });
       }
+      recordActivity(workspace, args.name, request.arguments, { space: 'desktop' });
       return computerUse.call(workspace, state.generation, request, signal);
-    });
+    }, workspace, true);
   }
   if (path === '/computer') {
     const { name, arguments: parameters = {} } = args;
     if (!computerTools.some(tool => tool.name === name)) throw new Error('Unknown computer tool.');
     if (name === 'computer_end_turn') return runtimeManager.endTurn(parameters.turnId);
-    if (name === 'computer_begin_turn') return runAgent(async () => { await requireBrowser(); return runtimeManager.beginTurn(parameters.turnId); });
+    if (name === 'computer_begin_turn') return runAgent(async () => { await requireBrowser(); return runtimeManager.beginTurn(parameters.turnId); }, workspace);
     if (name === 'computer_sleep') { await runtimeInitialization; return runtimeManager.sleep(control); }
     return runAgent(async () => {
       await requireBrowser();
       if (name === 'computer_wake') return runtimeManager.status();
       if (['computer_input', 'computer_screenshot'].includes(name)) { await computer('workspace_create', { name: workspace, ...(label !== workspace ? { label } : {}) }); await computer('workspace_select', { name: workspace }); }
       const action = name === 'computer_workspace' ? 'workspace_' + parameters.action : name.slice('computer_'.length);
+      recordActivity(workspace, name, parameters, { space: 'desktop' });
       return computer(action, parameters);
-    });
+    }, workspace, ['computer_input', 'computer_screenshot'].includes(name) || (name === 'computer_workspace' && parameters.action !== 'list'));
   }
   if (path === '/call') {
     // Set the busy gate before waking, so takeover cannot race restoration.
@@ -203,10 +258,29 @@ async function dispatch(path, args, signal, workspace = 'shared', label = worksp
       await requireBrowser();
       if (!tools.some(tool => tool.name === args.name)) throw new Error('Unknown browser tool.');
       const client = await browserClient(workspace);
-      const recovery = args.name === 'close_page' ? undefined : await workspaceBrowsers.ensure(workspace, label, client, args.name);
+      // Recovery and new windows require shared desktop focus. Existing page
+      // DOM commands stay independent while another workspace is under control.
+      if (control.mode === 'human' && (['new_page'].includes(args.name) || args.arguments?.bringToFront)) throw new Error('Desktop input is under human control. Retry window setup after takeover ends.');
+      const recovery = args.name === 'close_page' ? undefined : await workspaceBrowsers.ensure(workspace, label, client, args.name, control.mode !== 'human');
+      let point = {};
+      if (['click', 'fill', 'hover', 'drag'].includes(args.name) && typeof args.arguments?.uid === 'string') {
+        try {
+          const measured = await client.callTool({ name: 'evaluate_script', arguments: {
+            function: '(el) => { const r=el.getBoundingClientRect(); return {x:screenX+(outerWidth-innerWidth)/2+r.x+r.width/2,y:screenY+outerHeight-innerHeight+r.y+r.height/2}; }',
+            args: [args.arguments.uid], waitForStableDom: false,
+            ...(args.arguments.pageId !== undefined ? { pageId: args.arguments.pageId } : {}),
+          } }, undefined, { timeout: 2000, signal });
+          const text = measured.content?.filter(item => item.type === 'text').map(item => item.text).join('\n') || '';
+          const json = /\{[^{}]*"x"[^{}]*\}/.exec(text);
+          if (json) point = JSON.parse(json[0]);
+        } catch { /* Activity hints must never block browser actions. */ }
+      }
+      recordActivity(workspace, args.name, { ...args.arguments, ...point }, { space: 'desktop' });
       const request = recoveredRequest(args, recovery);
-      return client.callTool(request, undefined, { timeout: 120000, signal });
-    });
+      const result = await client.callTool(request, undefined, { timeout: 120000, signal });
+      if (!result.isError) recordActivity(workspace, args.name, { ...args.arguments, ...point }, { space: 'desktop' });
+      return result;
+    }, workspace);
   }
   throw new Error('Unknown MCP route.');
 }
@@ -257,48 +331,88 @@ const server = http.createServer(async (req, res) => {
       return json(res, await browserWindows());
     }
     if (path === '/workspaces' && req.method === 'GET') {
-      if (control.mode !== 'human') throw new Error('Open the computer to manage workspaces.');
-      return json(res, await desktop.workspaces(await computer('workspace_list')));
+      if (!control.viewerOpen) throw new Error('Open the viewer first.');
+      await requireBrowser();
+      return json(res, await viewedState());
     }
     if (path === '/apps' && req.method === 'GET') {
-      if (control.mode !== 'human') throw new Error('Open the computer to manage apps.');
+      if (!control.viewerOpen) throw new Error('Open the viewer first.');
       return json(res, await desktop.catalog());
+    }
+    if (path === '/watch-frame' && req.method === 'GET') {
+      if (!control.viewerOpen || control.mode === 'human') throw new Error('Open watch mode first.');
+      await requireBrowser();
+      const name = control.viewedWorkspace;
+      const state = await viewedState();
+      const revision = desktopRevision;
+      const frame = await desktopView.frame(state, name, () => revision === desktopRevision && name === control.viewedWorkspace && control.mode !== 'human');
+      const profile = state.workspaces.find(item => item.name === name);
+      const action = activities.get(name);
+      return json(res, { ...frame, profile, activity: action && Date.now() - action.at < 2500 ? action : null });
     }
     if (path === '/tools' && req.method === 'GET') return json(res, { tools: allTools });
     if (req.method !== 'POST') return json(res, { error: 'Not found.' }, 404);
     const args = await body(req);
     if (path === '/workspace-profile') return json(res, await desktop.profile(workspace, args));
     if (path === '/apps') {
-      return json(res, await control.runHuman(() => args.action === 'pin' ? desktop.pin(args.pins) : args.action === 'launch' ? desktop.launch(args.id, args.newWindow === true) : Promise.reject(new Error('Unknown app action.'))));
+      if (args.action === 'pin' && control.viewerOpen) return json(res, await desktop.pin(args.pins));
+      return json(res, await control.runHuman(() => args.action === 'launch' ? desktop.launch(args.id, args.newWindow === true) : Promise.reject(new Error('Unknown app action.'))));
     }
     if (path === '/workspaces') {
       if (!['select', 'create', 'open_browser'].includes(args.action)) throw new Error('Unknown workspace action.');
+      if (args.action === 'select') {
+        await openWatch(args.name);
+        return json(res, await viewedState());
+      }
       return json(res, await control.runHuman(async () => {
-        if (args.action === 'open_browser' && !args.name) {
-          const state = await computer('workspace_list');
-          args.name = state.workspaces.find(workspace => workspace.active)?.name;
-        }
+        if (args.action === 'open_browser' && !args.name) args.name = control.humanWorkspace;
+        if (args.name && args.name !== control.humanWorkspace && args.action !== 'create') throw new Error('Take control of this workspace first.');
         const result = await computer('workspace_' + args.action, args);
         if (args.action === 'create') return computer('workspace_select', { name: args.name });
         return result;
       }));
+    }
+    if (path === '/watch') {
+      await openWatch(args.name || (control.mode === 'pending' ? control.request?.workspace : null) || control.viewedWorkspace);
+      return json(res, control.status());
+    }
+    if (path === '/release-control') {
+      if (control.mode !== 'human') throw new Error('Take control before returning it.');
+      const status = await changeControl(() => control.release());
+      disconnectViewer();
+      return json(res, status);
     }
     if (path === '/client-status') { nativeClientStatus = { ...args, checkedAt: Date.now() }; return json(res, { ok: true }); }
     if (path === '/computer-use') return json(res, await dispatch(path, args, undefined, workspace, label));
     if (path === '/computer') return json(res, await dispatch('/computer', args, undefined, workspace, label));
     if (path === '/request-human') return json(res, await dispatch(path, args, undefined, workspace, label));
     if (path === '/windows' && req.method === 'POST') {
-      if (control.mode !== 'human') throw new Error('Open the browser to manage windows.');
+      if (control.mode !== 'human') throw new Error('Take control to manage windows.');
+      const state = await viewedState();
+      const selected = state.workspaces.find(item => item.active);
+      if (args.id && !state.windows.some(item => item.id === args.id && item.desktop === selected.desktop)) throw new Error('Window is outside controlled workspace.');
       return json(res, await control.runHuman(() => browserWindows(args.action, args)));
     }
     if (path === '/take-control') {
-      const intervention = control.mode === 'pending';
-      await changeControl(() => control.takeControl());
+      const name = args.name || (control.mode === 'pending' ? control.request?.workspace : null) || control.viewedWorkspace;
+      const available = await computer('workspace_list');
+      if (!available.workspaces.some(item => item.name === name)) throw new Error('Unknown workspace.');
+      await changeControl(async () => {
+        control.takeoverWaiting = name;
+        try {
+          const deadline = Date.now() + 120000;
+          while (control.busy) {
+            if (Date.now() > deadline) throw new Error('Current action is still finishing. Retry shortly.');
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          return control.takeControl(name);
+        } finally { control.takeoverWaiting = null; }
+      });
       control.humanBusy = true;
       try {
         await requireBrowser();
         if (await computerBusy()) throw new Error('Finishing an interrupted computer command. Retry shortly.');
-        if (!intervention) await computer('workspace_select', { name: 'shared' });
+        await computer('workspace_select', { name: control.humanWorkspace });
       } catch (error) {
         control.mode = 'paused'; control.automationPaused = true;
         throw error;
@@ -338,6 +452,7 @@ async function close() {
   disconnectViewer();
   server.close();
   for (const mcp of mcpConnections) await mcp.close();
+  watch.close();
   await computerUse.close();
   for (const client of browserClients.values()) await client.close();
   process.exit(0);

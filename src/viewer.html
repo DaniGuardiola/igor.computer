@@ -7,15 +7,47 @@
 .taskbar{height:42px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#262b30;border-bottom:1px solid #ffffff0c}.taskbar .spacer{flex:1}body.native .taskbar{display:none}#open-browser{width:32px;height:32px;padding:4px;border:0;background:none}#open-browser:hover{background:#ffffff12}#open-browser img{width:24px;height:24px}.divider{width:1px;height:20px;background:#ffffff18}.window{position:relative;border-radius:6px}.window.active{background:#ffffff0d}.window.active:after{content:"";position:absolute;bottom:0;left:calc(50% - 10px);width:20px;height:2px;border-radius:2px;background:#4998ff;pointer-events:none}.window .focus{display:flex;gap:8px;align-items:center}.window img{width:18px;height:18px}.window .focus span{overflow:hidden;text-overflow:ellipsis}
 
 .taskbar{height:48px;flex-shrink:0;border-bottom:0;border-top:1px solid #ffffff12;background:#25292e;gap:10px}.taskbar button{transition:background .12s,transform .12s}.taskbar button:active{transform:scale(.95)}#app-menu{border:0;background:none;font-size:22px;padding:3px 7px}#pins{display:flex;gap:4px;min-width:34px;min-height:34px;max-width:30vw;overflow-x:auto;align-items:center}.pin{flex-shrink:0}.popup>.launch{width:100%}.pin{width:34px;height:34px;padding:5px;border:0;background:none}.pin{position:relative}.pin.running:after{content:"";position:absolute;bottom:0;left:calc(50% - 1.5px);width:3px;height:3px;border-radius:50%;background:#4998ff}.pin img{width:24px;height:24px}.popup{position:fixed;z-index:10;padding:6px;background:#2a2e34f5;backdrop-filter:blur(20px);border:1px solid #ffffff1c;border-radius:12px;box-shadow:0 8px 30px #0006;min-width:220px}.popup .row{display:flex;gap:4px;align-items:center}.popup button{border:0;background:none;text-align:left}.popup .launch{flex:1;display:flex;align-items:center;gap:10px}.popup img,#workspace-button img{width:24px;height:24px;border-radius:50%;object-fit:cover}.popup .initial,#workspace-button .initial{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#679cf52a;font-weight:600}.popup .pin-action{font-size:11px;color:#aeb5c0}#workspace-button{display:flex;align-items:center;gap:8px;border:0}#screen.switching{pointer-events:none}.workspace-cover{position:absolute;inset:0;z-index:4;background:#17191d;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .13s ease;pointer-events:none}.workspace-cover.visible{opacity:1}.workspace-cover img{width:48px;height:48px;border-radius:50%;object-fit:cover}.workspace-cover .badge{display:flex;align-items:center;gap:12px;font-size:15px}.window{transition:background .12s}.window .focus{max-width:210px}.window .close{padding:6px 8px}.window img{flex-shrink:0}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+#preview{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;background:#17191d}.agent-hint{position:absolute;z-index:3;pointer-events:none;opacity:0;transition:opacity .18s,left .14s,top .14s;display:flex;align-items:center;gap:6px;color:#dae5ff;font-size:11px}.agent-hint.visible{opacity:1}.agent-hint .pointer{width:14px;height:19px;fill:#79a9ff;filter:drop-shadow(0 1px 2px #0008)}.agent-hint .tag{display:flex;align-items:center;gap:5px;padding:5px 8px;border-radius:8px;background:#30496de8;box-shadow:0 2px 8px #0003}.agent-hint img{width:18px;height:18px;border-radius:50%;object-fit:cover}.agent-hint.click .pointer{filter:drop-shadow(0 0 7px #79a9ff)}#screen.watching canvas{pointer-events:none}.agent-hint.click.has-pointer:before{content:"";position:absolute;left:-5px;top:-5px;width:18px;height:18px;border:1px solid #79a9ff99;border-radius:50%;animation:click-pulse .5s ease-out}@keyframes click-pulse{from{transform:scale(.5);opacity:1}to{transform:scale(2);opacity:0}}@media(prefers-reduced-motion:reduce){.agent-hint:before{animation:none!important}}
 </style>
 <header><strong>igor vm</strong><button id="workspace-button" aria-label="switch workspace">user</button><select hidden id="workspaces" aria-label="workspace"><option>user</option></select><button id="new-workspace" title="new workspace">+</button><span class="spacer"></span><button id="restore" title="restore windows" aria-label="restore windows">↺</button><label>automation<input id="automation" type="checkbox" checked></label><button id="done">✓ done</button></header>
 <div id="screen"><div id="message"><p id="detail">connecting to your computer…</p><form id="login" hidden><input id="token" type="password" autocomplete="off" placeholder="server credential" aria-label="server credential"><button>connect</button></form><button id="open" hidden>take control</button></div></div>
-<div class="taskbar"><button id="app-menu" title="apps" aria-label="apps">⊞</button><div id="pins"></div><button hidden id="open-browser" title="open or focus chromium in this workspace" aria-label="open chromium"><img src="/assets/chromium.png" alt=""></button><span class="divider"></span><div id="windows"></div><span class="spacer"></span><span class="muted">automation pauses while you use it</span></div>
+<div class="taskbar"><button id="app-menu" title="apps" aria-label="apps">⊞</button><div id="pins"></div><button hidden id="open-browser" title="open or focus chromium in this workspace" aria-label="open chromium"><img src="/assets/chromium.png" alt=""></button><span class="divider"></span><div id="windows"></div><span class="spacer"></span><span id="ownership" class="muted">watching</span></div>
 <script type="module">
 const native = new URLSearchParams(location.search).get('native') === '1';
 if (native) document.body.classList.add('native');
 const message = document.querySelector('#message'), detail = document.querySelector('#detail');
-let rfb, status, interval, windowState, appsState, popup;
+let rfb, status, interval, windowState, appsState, popup, frameTimer, frameRunning=false;
+const preview=document.createElement('img');preview.id='preview';preview.alt='live desktop view';preview.hidden=true;
+document.querySelector('#screen').prepend(preview);
+const hint=document.createElement('div');hint.className='agent-hint';hint.setAttribute('aria-hidden','true');document.querySelector('#screen').append(hint);
+function renderActivity(frame){
+ const action=frame.activity;if(hint.dataset.event===String(action?.at||'none'))return;hint.dataset.event=String(action?.at||'none');hint.className='agent-hint';hint.setAttribute('aria-hidden',action?'false':'true');
+ if(!action)return;
+ const tag=document.createElement('span');tag.className='tag';tag.append(picture(frame.profile||{}));
+ const label=document.createElement('span');label.textContent=(frame.profile?.label||'agent')+' · '+(action.key||action.kind);tag.append(label);
+ hint.replaceChildren();
+ const rect=preview.getBoundingClientRect();const scale=Math.min(rect.width/(frame.width||1440),rect.height/(frame.height||1000));
+ const x=action.x;const y=action.y;
+ const positioned=Number.isFinite(x)&&Number.isFinite(y)&&x>=0&&y>=0&&x<=frame.width&&y<=frame.height;
+ hint.classList.toggle('has-pointer',positioned);
+ if(positioned){const arrow=document.createElementNS('http://www.w3.org/2000/svg','svg');arrow.classList.add('pointer');arrow.setAttribute('viewBox','0 0 14 19');const path=document.createElementNS(arrow.namespaceURI,'path');path.setAttribute('d','M1 1 L12 12 L7 12 L10 18 L7 19 L4 13 L1 16 Z');arrow.append(path);hint.append(arrow)}
+ hint.append(tag);hint.style.left=(positioned?(rect.width-(frame.width||1440)*scale)/2+x*scale:16)+'px';hint.style.top=(positioned?(rect.height-(frame.height||1000)*scale)/2+y*scale:16)+'px';hint.classList.add('visible',action.kind);
+}
+async function refreshFrame(){
+ if(frameRunning||!status?.viewerOpen||status.mode==='human')return;
+ frameRunning=true;const workspace=status.viewedWorkspace;
+ try{const frame=await rpc('/watch-frame');if(status?.mode==='human'||status?.viewedWorkspace!==workspace||frame.profile?.name!==workspace)return;preview.hidden=false;if(frame.data){preview.src='data:image/jpeg;base64,'+frame.data;preview.dataset.workspace=workspace;message.style.display='none'}else if(preview.dataset.workspace!==workspace){preview.removeAttribute('src');detail.textContent='waiting for this desktop…';message.style.display='flex'}renderActivity(frame)}catch(error){detail.textContent=error.message;message.style.display='flex'}finally{frameRunning=false;frameTimer=setTimeout(refreshFrame,200)}
+}
+function updateOwnership(value){
+ status=value;document.querySelector('#automation').checked=!value.automationPaused;
+ document.querySelector('#done').textContent=value.mode==='human'?'✓ done':'take control';
+ document.querySelector('#ownership').textContent=value.mode==='human'?'you have control · this workspace paused':'watching';
+ screen.classList.toggle('watching',value.mode!=='human');
+ document.querySelector('#restore').disabled=value.mode!=='human';
+ document.querySelector('#new-workspace').disabled=value.mode!=='human';
+ document.querySelector('#new-workspace').title=value.mode==='human'?'new workspace':'take control to create a workspace';
+}
+window.refreshOwnership=async()=>{updateOwnership(await rpc('/status'));await connect()};
 const screen=document.querySelector('#screen');
 const cover=document.createElement('div');cover.className='workspace-cover';cover.setAttribute('aria-hidden','true');screen.append(cover);
 function dismissPopup(){popup?.remove();popup=null}
@@ -24,7 +56,7 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape')dismissPopup
 function picture(workspace){const node=document.createElement(workspace.avatar?'img':'span');if(workspace.avatar){node.src=workspace.avatar;node.alt=''}else{node.className='initial';node.textContent=(workspace.label||'user').slice(0,1).toUpperCase()}return node}
 function workspaceLabel(workspace){const label=document.createElement('span');label.textContent=workspace.label;return label}
 window.workspaceTransition={begin(workspace){cover.setAttribute('aria-hidden','false');screen.classList.add('switching');rfb?.blur();cover.replaceChildren();if(workspace){const badge=document.createElement('div');badge.className='badge';badge.append(picture(workspace),workspaceLabel(workspace));cover.append(badge)}cover.classList.add('visible')},end(){setTimeout(()=>{cover.classList.remove('visible');cover.setAttribute('aria-hidden','true');screen.classList.remove('switching');rfb?.focus()},150)}};
-async function selectWorkspace(name){dismissPopup();window.workspaceTransition.begin(windowState?.workspaces.find(w=>w.name===name));try{await rpc('/workspaces',{action:'select',name});await refreshWindows()}catch(error){showError(error)}finally{window.workspaceTransition.end()}}
+async function selectWorkspace(name){dismissPopup();window.workspaceTransition.begin(windowState?.workspaces.find(w=>w.name===name));try{await rpc('/workspaces',{action:'select',name});await connect();await refreshWindows()}catch(error){showError(error)}finally{window.workspaceTransition.end()}}
 function makePopup(button,bottom=false){dismissPopup();popup=document.createElement('div');popup.className='popup';document.body.append(popup);const rect=button.getBoundingClientRect();popup.style.left=rect.left+'px';if(bottom)popup.style.bottom=(innerHeight-rect.top+8)+'px';else popup.style.top=(rect.bottom+8)+'px';return popup}
 document.querySelector('#workspace-button').onclick=event=>{const menu=makePopup(event.currentTarget);for(const workspace of windowState?.workspaces||[]){const button=document.createElement('button');button.className='launch';button.append(picture(workspace),workspaceLabel(workspace));button.onclick=()=>selectWorkspace(workspace.name);menu.append(button)}};
 async function setPins(pins){appsState=await rpc('/apps',{action:'pin',pins});renderPins()}
@@ -35,7 +67,7 @@ const pins=document.querySelector('#pins');pins.ondragover=event=>{event.prevent
 document.querySelector('#app-menu').onclick=event=>{const menu=makePopup(event.currentTarget,true);for(const app of appsState?.apps||[]){const row=document.createElement('div');row.className='row';const open=document.createElement('button');open.className='launch';if(app.icon){const image=document.createElement('img');image.src=app.icon;open.append(image)}const name=document.createElement('span');name.textContent=app.name;open.append(name);open.onclick=()=>launchApp(app.id);open.draggable=true;open.ondragstart=event=>{event.dataTransfer.setData('application/x-igor-app',app.id);event.dataTransfer.effectAllowed='copyMove'};const pin=document.createElement('button');pin.className='pin-action';pin.textContent=appsState.pins.includes(app.id)?'unpin':'pin';pin.onclick=async()=>{try{await pinAction(app.id);pin.textContent=appsState.pins.includes(app.id)?'unpin':'pin'}catch(error){showError(error)}};row.append(open,pin);menu.append(row)}};
 
 async function refreshWindows(){
- if(native || !rfb) return;
+ if(native || !status?.viewerOpen) return;
  const workspaceState=await rpc("/workspaces");
  windowState=workspaceState;
  const active=workspaceState.workspaces.find(w=>w.active);if(active){const button=document.querySelector('#workspace-button');button.replaceChildren(picture(active),workspaceLabel(active))}
@@ -48,10 +80,10 @@ async function refreshWindows(){
 
  const strip=document.querySelector("#windows");
  const windows=windowState.windows.filter(window=>window.desktop===desktop||window.desktop===-1);
- const windowSignature=JSON.stringify([windowState.generation,windows]);
+ const windowSignature=JSON.stringify([windowState.generation,status.mode,windows]);
  if(strip.dataset.signature===windowSignature)return;
  strip.dataset.signature=windowSignature;strip.replaceChildren();
- for(const window of windowState.windows.filter(window=>window.desktop===desktop || window.desktop===-1)){const chip=document.createElement("div");chip.className="window"+(window.active?" active":"");const focus=document.createElement("button");focus.className="focus";if((window.app||"").toLowerCase().includes("chromium")){const icon=document.createElement("img");icon.src="/assets/chromium.png";icon.alt="";focus.append(icon)}const title=document.createElement("span");title.textContent=window.title.replace(/ - Chromium$/,"");focus.append(title);focus.onclick=()=>windowAction("focus",window.id);const close=document.createElement("button");close.textContent="×";close.className="close";close.title="close window";close.onclick=()=>windowAction("close",window.id);chip.append(focus,close);strip.append(chip);}
+ for(const window of windowState.windows.filter(window=>window.desktop===desktop || window.desktop===-1)){const chip=document.createElement("div");chip.className="window"+(window.active?" active":"");const focus=document.createElement("button");focus.className="focus";if((window.app||"").toLowerCase().includes("chromium")){const icon=document.createElement("img");icon.src="/assets/chromium.png";icon.alt="";focus.append(icon)}const title=document.createElement("span");title.textContent=window.title.replace(/ - Chromium$/,"");focus.append(title);focus.disabled=status.mode!=='human';focus.onclick=()=>windowAction("focus",window.id);const close=document.createElement("button");close.textContent="×";close.className="close";close.disabled=status.mode!=='human';close.title="close window";close.onclick=()=>windowAction("close",window.id);chip.append(focus,close);strip.append(chip);}
 }
 async function windowAction(action,id){try{await rpc("/windows",{action,id,generation:windowState.generation});await refreshWindows()}catch(error){showError(error)}}
 document.querySelector("#workspaces").onchange=event=>selectWorkspace(event.target.value);
@@ -70,33 +102,33 @@ async function connect(token) {
     if (!session.ok) throw new Error('credential not accepted');
   }
   document.querySelector('#login').hidden = true;
-  status = await rpc('/status');
-  document.querySelector('#automation').checked = !status.automationPaused;
-  if (status.mode !== 'human') {
-    detail.textContent = status.request?.message || 'computer stays in background until you take control.';
-    document.querySelector('#open').hidden = false;
-    return;
-  }
+  updateOwnership(await rpc('/status'));
+  if (!status.viewerOpen) updateOwnership(await rpc('/watch', {}));
   document.querySelector('#open').hidden = true;
-  if (rfb) return;
-  const {default:RFB} = await import('/vnc/core/rfb.js');
-  rfb = new RFB(document.querySelector('#screen'), `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/vnc/websockify`);
-  rfb.scaleViewport = true; rfb.resizeSession = false;
-  rfb.addEventListener('connect', () => { message.style.display='none'; rfb.focus(); void refreshWindows().catch(showError); });
-  rfb.addEventListener('disconnect', () => { rfb=null; message.style.display='flex'; detail.textContent='computer hidden'; void connect().catch(showError); });
+  clearTimeout(frameTimer);
+  if (status.mode !== 'human') {
+    if (rfb) { const previous=rfb;rfb=null;previous.disconnect(); }
+    preview.hidden=false;
+    void refreshFrame();
+  } else if (!rfb) {
+    preview.hidden=true;hint.classList.remove('visible');hint.setAttribute('aria-hidden','true');
+    const {default:RFB} = await import('/vnc/core/rfb.js');
+    rfb = new RFB(document.querySelector('#screen'), `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/vnc/websockify`);
+    rfb.scaleViewport=true;rfb.resizeSession=false;
+    rfb.addEventListener('connect',()=>{message.style.display='none';rfb?.focus();void refreshWindows().catch(showError)});
+    rfb.addEventListener('disconnect',()=>{rfb=null;});
+  }
   clearInterval(interval);
-  interval = setInterval(async () => {
-    try { const value = await rpc('/status'); if(value.mode !== 'human') rfb?.disconnect(); else await refreshWindows(); } catch(error){showError(error)}
-  },2000);
+  interval=setInterval(async()=>{try{const value=await rpc('/status');if(value.mode!==status.mode||value.viewerOpen!==status.viewerOpen)await connect();else updateOwnership(value);await refreshWindows()}catch(error){showError(error)}},2000);
+  await refreshWindows();
 }
 function showError(error) { message.style.display='flex'; detail.textContent=error.message; }
 document.querySelector('#login').addEventListener('submit',async event=>{event.preventDefault();const input=document.querySelector('#token');const token=input.value;input.value='';try{await connect(token)}catch(error){showError(error);document.querySelector('#login').hidden=false}});
 document.querySelector('#open').onclick=async()=>{const button=document.querySelector('#open');button.disabled=true;detail.textContent='waking your computer…';try{await rpc('/take-control',{});await connect()}catch(error){showError(error)}finally{button.disabled=false}};
 document.querySelector('#automation').onchange=async event=>{try{await rpc('/automation-pause',{paused:!event.target.checked})}catch(error){event.target.checked=!event.target.checked;showError(error)}};
-document.querySelector('#done').onclick=async()=>{try{const state=await rpc('/close-viewer',{});rfb?.disconnect();detail.textContent=state.automationPaused?'computer hidden · automation paused. switch automation on to resume.':'computer hidden · automation can continue.'}catch(error){showError(error)}};
+document.querySelector('#done').onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{await rpc(status.mode==='human'?'/release-control':'/take-control',{});await connect()}catch(error){showError(error)}finally{button.disabled=false}};
 const token=location.hash.slice(1);
 history.replaceState(null,'',location.pathname+location.search);
 try{await connect(token)}catch(error){showError(error);document.querySelector('#login').hidden=false}
-// Closing a tab must never silently resume a computer still owned by a human.
-// Reopening the viewer exposes the explicit done action.
+// Explicit takeover survives a lost connection; never resume on a transient disconnect.
 </script></html>
