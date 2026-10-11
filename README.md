@@ -138,7 +138,13 @@ tool calls.
 
 ## Human control
 
-**Open computer** opens a read-only live desktop of the selected workspace,
+**Your desktop** is the personal space, with no agent avatar. It opens directly
+with mouse and keyboard control; use the computer freely. **Done** closes it.
+Agent workspaces are created and retired automatically from Igor's agent roster.
+Retiring a workspace moves its open windows to your desktop, preserving tabs and
+logins. The picker has no manual workspace creation.
+
+Selecting an agent opens a read-only live desktop of its workspace,
 including Chromium's window frame, dialogs and the OS background. Watching does
 not pause its agent. Desktop captures validate the selected OS workspace before
 and after capture. While another workspace uses shared physical input, the view

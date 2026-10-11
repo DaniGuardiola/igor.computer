@@ -328,13 +328,13 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     func updateAutomationControl() {
-        window?.title = mode == "human" ? "igor vm · you have control" : "igor vm · watching"
+        window?.title = selectedWorkspace == "shared" ? "igor vm · your desktop" : mode == "human" ? "igor vm · you have control" : "igor vm · watching"
         if let group = window?.toolbar?.items.first(where: { $0.itemIdentifier == .browserActions })?.view as? NSStackView,
            let restore = group.arrangedSubviews.first as? NSButton { restore.isEnabled = mode == "human" }
         automationSwitch?.state = automationPaused ? .off : .on
         automationSwitch?.isEnabled = !pauseChangeRunning
         automationSwitch?.toolTip = automationPaused ? "resume automation for all workspaces" : "pause automation for all workspaces"
-        automationBanner?.stringValue = automationPaused ? "automation is paused" : mode == "human" ? "this workspace is paused · you have control" : "watching"
+        automationBanner?.stringValue = selectedWorkspace == "shared" ? (automationPaused ? "your desktop · automation is paused" : "your desktop · use it freely") : automationPaused ? "automation is paused" : mode == "human" ? "this workspace is paused · you have control" : "watching"
         controlButton?.isEnabled = !opening
         controlButton?.title = mode == "human" ? "done" : "take control"
         controlButton?.setAccessibilityLabel(mode == "human" ? "done" : "take control")
@@ -347,7 +347,7 @@ extension AppDelegate: NSToolbarDelegate {
         }
         if let group = window?.toolbar?.items.first(where: { $0.itemIdentifier == .browserActions })?.view as? NSStackView,
            let done = group.arrangedSubviews.last as? NSButton {
-            done.toolTip = mode == "human" ? "return this workspace to its agent · keep watching" : "control this workspace · pause its agent"
+            done.toolTip = selectedWorkspace == "shared" ? "close your desktop" : mode == "human" ? "return this workspace to its agent · keep watching" : "control this workspace · pause its agent"
         }
     }
 
@@ -392,35 +392,24 @@ extension AppDelegate: NSToolbarDelegate {
         workspaceListSignature = signature
         picker.removeAllItems()
         for workspace in workspaces {
+            if workspace["personal"] as? Bool != true, picker.numberOfItems == 1 {
+                picker.menu?.addItem(.separator())
+                let heading = NSMenuItem(title: "agents", action: nil, keyEquivalent: "")
+                heading.isEnabled = false
+                picker.menu?.addItem(heading)
+            }
             let name = workspace["name"] as? String ?? "shared"
             picker.addItem(withTitle: workspace["label"] as? String ?? name)
             picker.lastItem?.representedObject = name
             picker.lastItem?.image = workspacePicture(workspace)
             if workspace["active"] as? Bool == true { picker.select(picker.lastItem); selectedWorkspace = name }
         }
-        picker.menu?.addItem(.separator())
-        picker.addItem(withTitle: "new workspace…")
-        picker.lastItem?.isEnabled = mode == "human"
-        picker.lastItem?.representedObject = "__new"
         picker.isEnabled = true
     }
 
     @objc func selectWorkspace(_ sender: NSPopUpButton) {
         guard let name = sender.selectedItem?.representedObject as? String, !windowActionRunning else { return }
-        var args: [String: Any] = ["action": "select", "name": name]
-        if name == "__new" {
-            let alert = NSAlert()
-            alert.messageText = "new workspace"
-            let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-            input.placeholderString = "workspace name"
-            alert.accessoryView = input
-            alert.addButton(withTitle: "create")
-            alert.addButton(withTitle: "cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { workspaceListSignature = ""; refreshBrowserWindows(); return }
-            let label = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !label.isEmpty else { workspaceListSignature = ""; refreshBrowserWindows(); return }
-            args = ["action": "create", "name": "workspace-" + UUID().uuidString.lowercased(), "label": label]
-        }
+        let args: [String: Any] = ["action": "select", "name": name]
         if name == selectedWorkspace { return }
         if let workspace = workspaceData.first(where: { $0["name"] as? String == name }),
            let data = try? JSONSerialization.data(withJSONObject: workspace), let json = String(data: data, encoding: .utf8) {

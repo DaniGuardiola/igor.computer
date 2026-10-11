@@ -61,7 +61,8 @@ final class AppPinStrip: NSStackView {
 }
 
 extension AppDelegate {
-    func workspacePicture(_ workspace: [String: Any]) -> NSImage {
+    func workspacePicture(_ workspace: [String: Any]) -> NSImage? {
+        if workspace["personal"] as? Bool == true { return nil }
         let image: NSImage
         if let avatar = workspace["avatar"] as? String, let data = Data(base64Encoded: String(avatar.split(separator: ",").last ?? "")), let loaded = NSImage(data: data) {
             image = loaded

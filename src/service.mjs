@@ -183,7 +183,7 @@ async function body(req) {
   let data = '';
   for await (const chunk of req) {
     data += chunk;
-    if (Buffer.byteLength(data) > (req.url === '/workspace-profile' ? 16 : 1) * 1024 * 1024) throw new Error('Request too large.');
+    if (Buffer.byteLength(data) > (['/workspace-profile', '/workspace-sync'].includes(req.url) ? 16 : 1) * 1024 * 1024) throw new Error('Request too large.');
   }
   return data ? JSON.parse(data) : {};
 }
@@ -206,7 +206,9 @@ async function openWatch(name) {
       disconnectViewer();
       await computer('workspace_select', { name });
     } finally { control.humanBusy = false; }
-    return control.watch(name);
+    control.watch(name);
+    if (name === 'shared') return control.takeControl(name);
+    return control.status();
   });
 }
 async function dispatch(path, args, signal, workspace = 'shared', label = workspace) {
@@ -353,22 +355,50 @@ const server = http.createServer(async (req, res) => {
     if (path === '/tools' && req.method === 'GET') return json(res, { tools: allTools });
     if (req.method !== 'POST') return json(res, { error: 'Not found.' }, 404);
     const args = await body(req);
+    if (path === '/workspace-sync') {
+      await requireBrowser();
+      const result = await changeControl(async () => {
+        if (control.busy || control.humanBusy) throw new Error('Current desktop action is still finishing. Retry shortly.');
+        const previous = (await desktop.preferences()).rosters?.[args.owner] || [];
+        if (control.mode === 'human' && previous.includes(control.humanWorkspace) && !args.profiles?.some(profile => profile.id === control.humanWorkspace)) throw new Error('Finish control of the removed agent workspace before syncing.');
+        control.humanBusy = true;
+        let result;
+        try { result = await desktop.reconcile(args.owner, args.profiles); }
+        finally { control.humanBusy = false; }
+        for (const name of result.removed) {
+          await browserClients.get(name)?.close();
+          browserClients.delete(name);
+          workspaceBrowsers.prepared.delete(name);
+          desktopView.frames.delete(name);
+          activities.delete(name);
+        }
+        if (result.removed.includes(control.viewedWorkspace)) {
+          control.viewedWorkspace = 'shared';
+          if (control.viewerOpen) {
+            await computer('workspace_select', { name: 'shared' });
+            control.watch('shared');
+            control.takeControl('shared');
+          }
+        }
+        return { ok: true };
+      });
+      return json(res, result);
+    }
     if (path === '/workspace-profile') return json(res, await desktop.profile(workspace, args));
     if (path === '/apps') {
       if (args.action === 'pin' && control.viewerOpen) return json(res, await desktop.pin(args.pins));
       return json(res, await control.runHuman(() => args.action === 'launch' ? desktop.launch(args.id, args.newWindow === true) : Promise.reject(new Error('Unknown app action.'))));
     }
     if (path === '/workspaces') {
-      if (!['select', 'create', 'open_browser'].includes(args.action)) throw new Error('Unknown workspace action.');
+      if (!['select', 'open_browser'].includes(args.action)) throw new Error('Unknown workspace action.');
       if (args.action === 'select') {
         await openWatch(args.name);
         return json(res, await viewedState());
       }
       return json(res, await control.runHuman(async () => {
         if (args.action === 'open_browser' && !args.name) args.name = control.humanWorkspace;
-        if (args.name && args.name !== control.humanWorkspace && args.action !== 'create') throw new Error('Take control of this workspace first.');
+        if (args.name && args.name !== control.humanWorkspace) throw new Error('Take control of this workspace first.');
         const result = await computer('workspace_' + args.action, args);
-        if (args.action === 'create') return computer('workspace_select', { name: args.name });
         return result;
       }));
     }

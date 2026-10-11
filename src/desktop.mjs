@@ -1,6 +1,7 @@
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { guest, computer } from './guest.mjs';
+import { rosterScript } from './agent-roster.mjs';
 
 // Desktop entries are installed guest applications. gio handles Exec field codes;
 // clients never supply commands or host paths.
@@ -80,15 +81,38 @@ export class Desktop {
     await this.operations.guest(['python3', '-c', script, JSON.stringify({ action: 'launch', id, desktop: workspace.desktop })]).catch(() => { throw new Error('The app did not open a window in this workspace.'); });
     return computer('workspace_list');
   }
-  async profile(name, profile) {
+  validateProfile(name, profile) {
     if (!/^[a-zA-Z0-9_-]{1,60}$/.test(name) || typeof profile.label !== 'string' || !profile.label.trim() || profile.label.length > 80) throw new Error('Invalid workspace profile.');
     const avatar = profile.avatar ?? null;
     if (avatar !== null && (typeof avatar !== 'string' || avatar.length > 14 * 1024 * 1024 || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(avatar))) throw new Error('Use a PNG, JPEG or WebP workspace picture.');
-    await this.update(value => { value.profiles ??= {}; value.profiles[name] = { label: profile.label.trim(), avatar }; });
+  }
+  async profile(name, profile) {
+    this.validateProfile(name, profile);
+    await this.update(value => { value.profiles ??= {}; value.profiles[name] = { label: profile.label.trim(), avatar: profile.avatar ?? null }; });
     return { ok: true };
+  }
+  async reconcile(owner, profiles) {
+    if (typeof owner !== 'string' || !/^[a-f0-9]{64}$/.test(owner) || !Array.isArray(profiles) || profiles.length > 31) throw new Error('Invalid agent roster.');
+    const ids = profiles.map(profile => profile?.id);
+    if (new Set(ids).size !== ids.length || ids.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,60}$/.test(id) || ['shared', 'user'].includes(id))) throw new Error('Invalid agent workspace IDs.');
+    // Validate the entire roster before creating or retiring any workspace.
+    for (const profile of profiles) this.validateProfile(profile.id, profile);
+    const rosters = (await this.preferences()).rosters || {};
+    const previous = rosters[owner] || [];
+    const elsewhere = Object.entries(rosters).filter(([key]) => key !== owner).flatMap(([, names]) => names);
+    const removed = previous.filter(id => !ids.includes(id) && !elsewhere.includes(id));
+    await this.operations.guest(['python3', '-c', rosterScript, JSON.stringify({ removed, profiles: profiles.map(({ id, label }) => ({ id, label })) })]);
+    await this.update(value => {
+      value.profiles ??= {};
+      for (const profile of profiles) value.profiles[profile.id] = { label: profile.label.trim(), avatar: profile.avatar ?? null };
+      for (const name of removed) delete value.profiles[name];
+      value.rosters ??= {};
+      value.rosters[owner] = ids;
+    });
+    return { removed };
   }
   async workspaces(state) {
     const { profiles = {} } = await this.preferences();
-    return { ...state, workspaces: state.workspaces.map(item => ({ ...item, ...profiles[item.name] })) };
+    return { ...state, workspaces: state.workspaces.map(item => (item.name === 'shared' ? { ...item, label: 'your desktop', avatar: null, personal: true } : { ...item, ...profiles[item.name], personal: false })) };
   }
 }

@@ -25,7 +25,7 @@ test('profile updates preserve stable workspace identity, desktop and windows', 
   const state={workspaces:[{name:'agent-1',label:'old',desktop:3,active:true}],windows:[{id:'0x7'}]};
   await desktop.profile('agent-1',{label:'new',avatar:'data:image/png;base64,YQ=='});
   const value=await desktop.workspaces(state);
-  assert.deepEqual(value.workspaces[0],{name:'agent-1',label:'new',desktop:3,active:true,avatar:'data:image/png;base64,YQ=='});
+  assert.deepEqual(value.workspaces[0],{name:'agent-1',label:'new',desktop:3,active:true,avatar:'data:image/png;base64,YQ==',personal:false});
   assert.deepEqual(value.windows,state.windows);
   await desktop.profile('agent-1',{label:'newer',avatar:null});
   assert.equal((await desktop.workspaces(state)).workspaces[0].avatar,null);
@@ -39,5 +39,25 @@ test('Chromium launcher reuses browser in currently selected workspace',async()=
   await desktop.launch('chromium.desktop');
   assert.deepEqual(calls[1],['workspace_open_browser',{name:'agent-2',reuse:true}]);
   await assert.rejects(desktop.launch('arbitrary-command'));
+ }finally{await rm(root,{recursive:true,force:true})}
+});
+test('agent roster retires only its owned workspaces and validates before guest changes', async () => {
+ const root=await mkdtemp(join(tmpdir(),'igor-roster-'));const calls=[];
+ try {
+  const desktop=new Desktop(root,{guest:async args=>{calls.push(JSON.parse(args.at(-1)));return {stdout:'{}'}}});
+  const owner='a'.repeat(64),other='b'.repeat(64);
+  await desktop.reconcile(owner,[{id:'agent-1',label:'first',avatar:null},{id:'agent-2',label:'second',avatar:null}]);
+  await desktop.reconcile(other,[{id:'agent-2',label:'second',avatar:null}]);
+  await desktop.reconcile(owner,[{id:'agent-1',label:'renamed',avatar:null}]);
+  assert.deepEqual(calls.at(-1).removed,[]);
+  await desktop.reconcile(other,[]);
+  assert.deepEqual(calls.at(-1).removed,['agent-2']);
+  const count=calls.length;
+  await assert.rejects(desktop.reconcile(owner,[{id:'agent-1',label:'ok'},{id:'shared',label:'bad'}]));
+  await assert.rejects(desktop.reconcile(owner,[{id:'agent-1',label:'ok',avatar:'https://external'}]));
+  assert.equal(calls.length,count);
+  const state=await desktop.workspaces({workspaces:[{name:'shared',label:'user',desktop:0},{name:'agent-1',desktop:1}],windows:[]});
+  assert.deepEqual(state.workspaces[0],{name:'shared',label:'your desktop',desktop:0,avatar:null,personal:true});
+  assert.equal(state.workspaces[1].label,'renamed');
  }finally{await rm(root,{recursive:true,force:true})}
 });

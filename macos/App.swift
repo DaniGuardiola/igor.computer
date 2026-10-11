@@ -408,6 +408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     @objc func finish() {
         guard !opening else { return }
+        if selectedWorkspace == "shared", mode == "human" { closeBrowserViewer(); return }
         opening = true
         controlButton?.isEnabled = false
         request(mode == "human" ? "/release-control" : "/take-control", post: true, arguments: ["name": selectedWorkspace]) { result in
