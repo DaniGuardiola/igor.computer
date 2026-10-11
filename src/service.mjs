@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { Appearance, applyGuestAppearance } from './appearance.mjs';
 import { AgentActivity } from './agent-activity.mjs';
 import { DesktopView } from './desktop-view.mjs';
 import { Watch, activity } from './watch.mjs';
@@ -34,6 +35,8 @@ catch (error) {
   token = randomBytes(32).toString('hex');
   await writeFile(tokenFile, token, { mode: 0o600, flag: 'wx' });
 }
+const appearance = new Appearance(stateDir, applyGuestAppearance);
+await appearance.load();
 const desktop = new Desktop(stateDir);
 const control = new Control();
 const watch = new Watch();
@@ -122,14 +125,16 @@ async function getStatus() {
   const setup = nativeReadiness(nativeClientStatus || native);
   const lifecycle = runtimeManager.status();
   const runtime = lifecycle.state === 'awake' ? { ...lifecycle, ...await browserHealth() } : lifecycle;
-  return { ...control.status(), setup, runtime, ...(control.mode === 'pending' ? { delivery: setup.notifications ? 'notification' : 'viewer', viewer: origin + '/viewer' } : {}) };
+  return { ...control.status(), appearance: appearance.value, setup, runtime, ...(control.mode === 'pending' ? { delivery: setup.notifications ? 'notification' : 'viewer', viewer: origin + '/viewer' } : {}) };
 }
 async function requireBrowser() {
   await runtimeInitialization;
+  if (runtimeManager.state !== 'awake') appearance.appliedDark = undefined;
   await runtimeManager.ready();
   healthCache = null;
   const health = await browserHealth();
   if (!health.ready) throw new Error(health.issues.join(' '));
+  await appearance.ensure();
 }
 const upstream = new Client({ name: 'igor-vm-service', version: '0.2.0' });
 const transportOptions = {
@@ -344,6 +349,7 @@ const server = http.createServer(async (req, res) => {
       await requireBrowser();
       return json(res, await viewedState());
     }
+    if (path === '/appearance' && req.method === 'GET') return json(res, appearance.value);
     if (path === '/apps' && req.method === 'GET') {
       if (!control.viewerOpen) throw new Error('Open the viewer first.');
       return json(res, await desktop.catalog());
@@ -419,6 +425,7 @@ const server = http.createServer(async (req, res) => {
       disconnectViewer();
       return json(res, status);
     }
+    if (path === '/appearance') { await requireBrowser(); return json(res, await appearance.set(args.mode, args.hostDark)); }
     if (path === '/client-status') { nativeClientStatus = { ...args, checkedAt: Date.now() }; return json(res, { ok: true }); }
     if (path === '/computer-use') return json(res, await dispatch(path, args, undefined, workspace, label));
     if (path === '/computer') return json(res, await dispatch('/computer', args, undefined, workspace, label));

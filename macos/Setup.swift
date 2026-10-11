@@ -74,7 +74,7 @@ extension AppDelegate {
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.center()
-        let view = NSView()
+        let view = AppearanceSurface()
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         window.contentView = view
@@ -92,7 +92,7 @@ extension AppDelegate {
         headerText.orientation = .vertical; headerText.alignment = .leading; headerText.spacing = 6
         let header = NSStackView(views: [globe, headerText]); header.spacing = 14
 
-        let card = NSStackView()
+        let card = AppearanceCard()
         card.orientation = .vertical; card.alignment = .leading; card.spacing = 0
         card.wantsLayer = true
         card.layer?.cornerRadius = 12
@@ -155,7 +155,17 @@ extension AppDelegate {
         logs.bezelStyle = .rounded; logs.controlSize = .small
         let spacer = NSView()
         let footer = NSStackView(views: [logs, spacer, done, primary]); footer.spacing = 10
-        let stack = NSStackView(views: [header, card, summary, footer])
+        let appearanceTitle = NSTextField(labelWithString: "appearance")
+        appearanceTitle.font = .systemFont(ofSize: 13, weight: .medium)
+        let theme = NSSegmentedControl(labels: ["system", "light", "dark"], trackingMode: .selectOne, target: self, action: #selector(changeAppearance(_:)))
+        theme.selectedSegment = ["system", "light", "dark"].firstIndex(of: appearanceMode) ?? 0
+        theme.toolTip = "system follows your Mac's appearance"
+        theme.setAccessibilityLabel("appearance")
+        for index in 0..<3 { theme.setWidth(62, forSegment: index) }
+        appearancePicker = theme
+        let appearanceRow = NSStackView(views: [appearanceTitle, NSView(), theme])
+        appearanceRow.alignment = .centerY
+        let stack = NSStackView(views: [header, card, appearanceRow, summary, footer])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 20
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
@@ -164,6 +174,7 @@ extension AppDelegate {
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             card.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            appearanceRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
             summary.widthAnchor.constraint(equalTo: stack.widthAnchor),
             footer.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
@@ -233,13 +244,13 @@ extension AppDelegate {
         }
         if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "available whenever you log in" }
         setupDescription?.stringValue = "a computer for your agent."
-        setupSummary?.isHidden = setupComplete
-        setupSummary?.stringValue = mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar."
+        setupSummary?.isHidden = setupComplete && appearanceError == nil
+        setupSummary?.stringValue = appearanceError ?? (mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar.")
         setupPrimary?.isEnabled = runtimeReady
         setupLog?.isHidden = startupError == nil && runtimeIssues.isEmpty
         if let window = setupWindow, let view = window.contentView {
             view.layoutSubtreeIfNeeded()
-            let height: CGFloat = installedCorrectly ? (setupComplete ? 398 : 432) : 508
+            let height: CGFloat = (installedCorrectly ? (setupComplete ? 446 : 480) : 556) + (appearanceError == nil ? 0 : 34)
             if abs(view.frame.height - height) > 1 {
                 var frame = window.frame
                 let difference = height - view.frame.height

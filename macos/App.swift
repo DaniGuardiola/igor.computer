@@ -9,6 +9,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var pauseTip: NSPopover?
     var statusMenuOpen = false
     var pauseChangeRunning = false
+    var appearanceMode = UserDefaults.standard.string(forKey: "appearanceMode") ?? "system"
+    var appearancePicker: NSSegmentedControl?
+    var appearanceSyncing = false
+    var appearanceSignature = ""
+    var appearanceError: String?
     var automationPaused = false
     var automationBanner: NSTextField?
     var controlButton: NSButton?
@@ -108,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
         if let index = CommandLine.arguments.firstIndex(of: "--token-file"), index + 1 < CommandLine.arguments.count { UserDefaults.standard.set(CommandLine.arguments[index + 1], forKey: "serverTokenFile") }
         NSApp.setActivationPolicy(.accessory)
+        applyNativeAppearance()
         makeApplicationMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "igor vm")
@@ -183,7 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = path == "/take-control" ? 180 : (path == "/windows" ? 10 : 5)
+        request.timeoutInterval = path == "/take-control" ? 180 : (path == "/appearance" ? 30 : (path == "/windows" ? 10 : 5))
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let error = error { completion(.failure(error)); return }
@@ -218,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 let runtime = status["runtime"] as? [String: Any] ?? [:]
                 self.runtimeReady = runtime["ready"] as? Bool ?? false
                 self.runtimeIssues = runtime["issues"] as? [String] ?? []
-                if self.runtimeReady { self.startupError = nil; self.startupStarted = nil }
+                if self.runtimeReady { self.startupError = nil; self.startupStarted = nil; self.syncAppearance(status["appearance"] as? [String: Any]) }
                 if !self.viewerOpen && self.window?.isVisible == true { self.hideWindow() }
                 if self.mode == "pending", let request = status["request"] as? [String: Any], let id = request["id"] as? String {
                     self.helpMessage = request["message"] as? String ?? "your ai needs your help."

@@ -74,6 +74,13 @@ try:
            '--auth-plugin=BasicHTTPAuth', '--auth-source=' + display_credentials,
            '6080', 'localhost:5900'])
     start(['socat', 'TCP-LISTEN:9222,fork,reuseaddr', 'TCP:127.0.0.1:9223'])
+    # New profiles use Chromium's ordinary GTK theme setting. Existing themes
+    # remain user-controlled; appearance changes use the desktop settings service.
+    preferences = '/profile/Default/Preferences'
+    if not os.path.exists(preferences):
+        os.makedirs('/profile/Default', exist_ok=True)
+        with open(preferences, 'w') as file:
+            json.dump({'extensions': {'theme': {'system_theme': 1}}}, file)
     browser_args = ['chromium', '--user-data-dir=/profile',
                      '--remote-debugging-port=9223', '--no-first-run',
                      '--no-default-browser-check', '--window-size=1440,1000',

@@ -9,6 +9,12 @@ connections keep their own DevTools page selection; accounts remain shared.
 The macOS app and authenticated web viewer are clients of the same server.
 Quitting either client does not stop the server or VM.
 
+The Mac app's appearance setting offers System (default), Light and Dark. System
+follows macOS, including automatic appearance changes. The setting updates the
+client UI, a subtle gradient desktop, Openbox decorations and standard GTK/portal
+settings without restarting apps. New Chromium profiles use its stock GTK theme;
+users can still choose custom browser themes independently.
+
 The agent's conversation, orchestration and task state belong outside this
 computer. Igor connects through `@igor.ai/extension-vm`, with Lightpanda first,
 Igor VM second, and My browser last. The server also connects to any other MCP
