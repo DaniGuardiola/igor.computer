@@ -2,7 +2,7 @@ import AppKit
 
 private let appDragType = NSPasteboard.PasteboardType("ai.igor.vm.app")
 
-final class AppPinButton: BrowserHoverButton, NSDraggingSource {
+class AppPinButton: BrowserHoverButton, NSDraggingSource {
     var appID = ""
     var running = false { didSet { if oldValue != running { needsDisplay = true } } }
     override func draw(_ dirtyRect: NSRect) {
@@ -43,6 +43,45 @@ final class AppPinButton: BrowserHoverButton, NSDraggingSource {
         guard operation == [], let window = window, let strip = superview else { return }
         let point = strip.convert(window.convertPoint(fromScreen: screenPoint), from: nil)
         if !strip.bounds.insetBy(dx: -40, dy: -45).contains(point) { onRemove?() }
+    }
+}
+
+// A desktop surface, contained by the viewer rather than a separate macOS popup.
+final class AppLauncherSurface: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 12, yRadius: 12)
+        (dark ? NSColor(srgbRed: 0.14, green: 0.17, blue: 0.22, alpha: 1) : NSColor(srgbRed: 0.94, green: 0.96, blue: 0.99, alpha: 1)).setFill()
+        shape.fill()
+        NSColor.labelColor.withAlphaComponent(0.10).setStroke()
+        shape.lineWidth = 1
+        shape.stroke()
+    }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+}
+
+final class AppLauncherTile: AppPinButton {
+    private var tileHovered = false
+    override func mouseEntered(with event: NSEvent) { tileHovered = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { tileHovered = false; needsDisplay = true }
+    override func rightMouseDown(with event: NSEvent) {
+        if let menu = menu { NSMenu.popUpContextMenu(menu, with: event, for: self) }
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        if tileHovered || isHighlighted {
+            NSColor.labelColor.withAlphaComponent(isHighlighted ? 0.14 : 0.07).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 8, yRadius: 8).fill()
+        }
+        let iconY = isFlipped ? CGFloat(14) : bounds.height - 50
+        image?.draw(in: NSRect(x: bounds.midX - 18, y: iconY, width: 36, height: 36), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
+        let label = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph])
+        label.draw(in: NSRect(x: 6, y: isFlipped ? 60 : bounds.height - 76, width: bounds.width - 12, height: 18))
     }
 }
 
@@ -155,13 +194,12 @@ extension AppDelegate {
     }
 
     @objc func showApps(_ sender: NSButton) {
-        if appsPopover?.isShown == true { appsPopover?.close(); return }
-        let controller = NSViewController()
+        if appLauncher != nil { dismissAppLauncher(); return }
+        guard let container = window?.contentView, let bar = desktopBar else { return }
         let rows = max(1, (desktopApps.count + 2) / 3)
         let gridHeight = CGFloat(rows) * 100
         let visibleHeight = min(gridHeight, 340)
-        let content = NSView(frame: NSRect(x: 0, y: 0, width: 336, height: visibleHeight + 52))
-        controller.view = content
+        let content = AppLauncherSurface(frame: NSRect(x: 0, y: 0, width: 336, height: visibleHeight + 52))
         let title = NSTextField(labelWithString: "apps")
         title.font = .systemFont(ofSize: 13, weight: .semibold)
         title.frame = NSRect(x: 18, y: visibleHeight + 24, width: 300, height: 18)
@@ -174,7 +212,7 @@ extension AppDelegate {
         for (index, app) in desktopApps.enumerated() {
             guard let id = app["id"] as? String else { continue }
             let name = app["name"] as? String ?? id
-            let open = AppPinButton(title: name, target: self, action: #selector(openApp(_:)))
+            let open = AppLauncherTile(title: name, target: self, action: #selector(openApp(_:)))
             open.appID = id
             open.identifier = NSUserInterfaceItemIdentifier(id)
             open.image = appImage(app).copy() as? NSImage
@@ -197,17 +235,43 @@ extension AppDelegate {
         scroll.documentView = grid
         scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, gridHeight - visibleHeight)))
         content.addSubview(scroll)
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentViewController = controller
-        appsPopover = popover
-        if appMenuKeyMonitor == nil {
-            appMenuKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                if event.keyCode == 53, self?.appsPopover?.isShown == true { self?.appsPopover?.close(); return nil }
-                return event
-            }
+        content.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(content, positioned: .above, relativeTo: webView)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            content.bottomAnchor.constraint(equalTo: bar.topAnchor, constant: -8),
+            content.widthAnchor.constraint(equalToConstant: 336),
+            content.heightAnchor.constraint(equalToConstant: visibleHeight + 52)
+        ])
+        content.wantsLayer = true
+        content.layer?.shadowColor = NSColor.black.cgColor
+        content.layer?.shadowOpacity = 0.18
+        content.layer?.shadowRadius = 12
+        content.layer?.shadowOffset = CGSize(width: 0, height: -3)
+        appLauncher = content
+        content.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 1 : 0
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.14
+            content.animator().alphaValue = 1
         }
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+        appMenuKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self, let panel = self.appLauncher else { return event }
+            if event.type == .keyDown {
+                if event.keyCode == 53 { self.dismissAppLauncher(); return nil }
+            } else if event.window === self.window {
+                let insidePanel = panel.bounds.contains(panel.convert(event.locationInWindow, from: nil))
+                let insideButton = sender.bounds.contains(sender.convert(event.locationInWindow, from: nil))
+                if !insidePanel && !insideButton { self.dismissAppLauncher() }
+            }
+            return event
+        }
+    }
+
+    func dismissAppLauncher() {
+        appLauncher?.removeFromSuperview()
+        appLauncher = nil
+        if let monitor = appMenuKeyMonitor { NSEvent.removeMonitor(monitor) }
+        appMenuKeyMonitor = nil
     }
     @objc func pinAppButton(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue else { return }
@@ -221,7 +285,7 @@ extension AppDelegate {
     @objc func openNewAppMenu(_ sender: NSMenuItem) { if let id = sender.representedObject as? String { launchApp(id, newWindow: true) } }
     @objc func openAppMenu(_ sender: NSMenuItem) { if let id = sender.representedObject as? String { launchApp(id) } }
     @objc func togglePin(_ sender: NSMenuItem) {
-        appsPopover?.close()
+        dismissAppLauncher()
         guard let id = sender.representedObject as? String else { return }
         setPins(pinnedApps.contains(id) ? pinnedApps.filter { $0 != id } : pinnedApps + [id])
     }
@@ -238,7 +302,7 @@ extension AppDelegate {
         }
     }
     func launchApp(_ id: String, newWindow: Bool = false) {
-        appsPopover?.close()
+        dismissAppLauncher()
         guard !windowActionRunning else { return }
         windowActionRunning = true
         request("/apps", post: true, arguments: ["action": "launch", "id": id, "newWindow": newWindow]) { result in

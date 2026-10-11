@@ -468,6 +468,7 @@ extension AppDelegate: NSToolbarDelegate {
     }
 
     @objc func selectWorkspace(_ sender: NSPopUpButton) {
+        dismissAppLauncher()
         guard let name = sender.selectedItem?.representedObject as? String, !windowActionRunning else { return }
         let args: [String: Any] = ["action": "select", "name": name]
         if name == selectedWorkspace { return }

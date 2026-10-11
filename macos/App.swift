@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var appPins: AppPinStrip?
     var pinStripWidth: NSLayoutConstraint?
     var appMenuButton: NSButton?
-    var appsPopover: NSPopover?
+    var appLauncher: NSView?
     var appMenuKeyMonitor: Any?
     var desktopApps: [[String: Any]] = []
     var pinnedApps: [String] = []
@@ -451,6 +451,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func hideWindow() {
+        dismissAppLauncher()
         webView?.loadHTMLString("", baseURL: nil)
         window?.orderOut(nil)
         updateWindowMode()
