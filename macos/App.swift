@@ -15,7 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var appearanceSignature = ""
     var appearanceError: String?
     var automationPaused = false
-    var automationBanner: NSTextField?
     var controlButton: NSButton?
     var controlModeLabel: NSTextField?
     var controlModeIcon: NSImageView?

@@ -353,20 +353,14 @@ extension AppDelegate: NSToolbarDelegate {
         pinStripWidth = pins.widthAnchor.constraint(equalToConstant: 34)
         pinStripWidth?.isActive = true
         appPins = pins
-        let label = NSTextField(labelWithString: "automation paused while open")
-        label.font = .systemFont(ofSize: 11)
-        label.textColor = .secondaryLabelColor
-        label.alignment = .right
-        label.setContentHuggingPriority(.required, for: .horizontal)
         let separator = NSBox()
         separator.boxType = .separator
         separator.widthAnchor.constraint(equalToConstant: 1).isActive = true
         separator.heightAnchor.constraint(equalToConstant: 20).isActive = true
-        let row = NSStackView(views: [menu, pins, separator, tasks, label])
+        let row = NSStackView(views: [menu, pins, separator, tasks])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 10
-        label.setContentCompressionResistancePriority(.required, for: .horizontal)
         let view = NSVisualEffectView()
         view.material = .headerView
         view.blendingMode = .withinWindow
@@ -385,21 +379,18 @@ extension AppDelegate: NSToolbarDelegate {
             row.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
         desktopBar = view
-        automationBanner = label
         updateAutomationControl()
         refreshApps()
     }
 
     func updateAutomationControl() {
         window?.title = selectedWorkspace == "shared" ? "igor vm · your desktop" : mode == "human" ? "igor vm · you have control" : "igor vm · watching"
-        automationBanner?.isHidden = selectedWorkspace != "shared"
         let agentState = workspaceData.first(where: { $0["name"] as? String == selectedWorkspace })?["agentState"] as? String ?? "idle"
         controlModeLabel?.stringValue = selectedWorkspace == "shared" ? "your desktop" : mode == "human" ? "you have control" : "watching · " + agentState
         controlModeIcon?.contentTintColor = mode == "human" ? .systemGreen : agentState == "active" ? .systemGreen : .secondaryLabelColor
         controlModeLabel?.textColor = .labelColor
         controlModeIcon?.image = NSImage(systemSymbolName: mode == "human" ? "cursorarrow" : "eye", accessibilityDescription: nil)
         controlModeLabel?.toolTip = mode == "human" ? "this agent is paused while you control its workspace" : "live view · take control to interact"
-        automationBanner?.stringValue = selectedWorkspace == "shared" ? (automationPaused ? "your desktop · automation is paused" : "your desktop · use it freely") : automationPaused ? "automation is paused" : mode == "human" ? "this workspace is paused · you have control" : "watching"
         controlButton?.isEnabled = !opening
         controlButton?.title = selectedWorkspace == "shared" ? "done" : mode == "human" ? (automationPaused ? "release control" : "resume agent") : "take control"
         controlButton?.setAccessibilityLabel(controlButton?.title ?? "take control")
