@@ -9,6 +9,12 @@ device = subprocess.check_output(['findmnt', '-n', '-o', 'SOURCE', point], text=
 subprocess.check_call(['umount', point])
 subprocess.check_call(['blockdev', '--flushbufs', device])
 subprocess.check_call(['mount', '-o', 'ro', device, point])
+# The host resolver binds fresh ports at each Lima start. Saved RAM retains
+# LIMADNS rules for the previous host process. Replay only Lima's DNS setup,
+# using the regenerated environment, before reporting the restored guest ready.
+subprocess.check_call(['/bin/sh', '-c',
+    'set -a; . /mnt/lima-cidata/lima.env; set +a; '
+    'exec /bin/sh /mnt/lima-cidata/boot.Linux/09-host-dns-setup.sh'])
 value = next(line.split(':', 1)[1].strip() for line in Path(point + '/meta-data').read_text().splitlines()
              if line.startswith('instance-id:'))
 for name in ('lima-ssh-ready', 'lima-boot-done'):
