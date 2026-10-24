@@ -126,9 +126,6 @@ the server if its version or build is newer. If a computer became busy anyway,
 the running server is kept and the update is retried on the next launch.
 Computers and their data are untouched.
 
-While the repository is private, release downloads return 404 to the app, so
-updates only start working once it's public.
-
 ### One-time setup
 
 1. Apple Developer Program membership, a **Developer ID Application**
@@ -147,8 +144,8 @@ updates only start working once it's public.
    somewhere safe, then delete it. Losing the key means installed apps can't
    update.
 3. In the repository settings, allow GitHub Actions to create pull requests,
-   and after the first release, set Pages to deploy from branch `updates`,
-   root.
+   and set Pages to deploy from branch `updates`, root (the first release
+   creates the branch).
 4. A GitHub environment named `release` with these secrets:
 
 | Secret | Value |

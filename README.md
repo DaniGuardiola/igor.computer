@@ -85,13 +85,17 @@ of sandboxed agent computer, but on your own Mac or server.
 
 ## Install
 
-You need an Apple Silicon Mac with macOS 13 or later.
+You need an Apple Silicon Mac with macOS 13 or later and
+[Homebrew](https://brew.sh).
 
-> 🚧 **Downloads are coming.** Signed releases with auto-updates are set up, but
-> none is published yet. For now, [build and run from source](docs/development.md#build-and-run-from-source).
+1. [Download igor.computer](https://github.com/DaniGuardiola/igor.computer/releases/latest/download/igor.computer-arm64.dmg)
+   and drag it into Applications.
+2. Open it. Its setup installs what it needs (Lima, QEMU and Docker) through
+   Homebrew.
 
-The app installs a background server. The first start builds your computer,
-which takes a few minutes.
+The app installs a background server, and updates itself and the server. The
+first start builds your computer, which takes a few minutes. To work on it
+instead, [build and run from source](docs/development.md#build-and-run-from-source).
 
 ## Connect your agent
 
@@ -185,7 +189,7 @@ Early, and used daily by its author.
 
 - ✅ macOS on Apple Silicon is the tested setup.
 - 🚧 Linux hosts are implemented but not yet validated on real hardware.
-- 🚧 Signed releases with auto-updates are set up but none is published yet.
+- ✅ Signed, notarized releases with auto-updates.
 
 It started as the computer for [Igor](docs/igor.md), a personal AI assistant,
 but it doesn't depend on Igor.
