@@ -132,9 +132,8 @@ The easiest way is to let your agent do it. Give it the
 [create-computer skill](skills/create-computer/SKILL.md), or paste this:
 
 ```text
-Help me create an igor.computer computer. Follow
-https://github.com/DaniGuardiola/igor.computer/blob/main/skills/create-computer/SKILL.md:
-ask me what I need, then write, check and create the definition.
+Help me create an igor.computer computer:
+https://github.com/DaniGuardiola/igor.computer/blob/main/skills/create-computer/SKILL.md
 ```
 
 Or do it by hand:
