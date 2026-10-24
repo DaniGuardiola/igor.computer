@@ -58,6 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var computerPath: String { computer == "default" ? "" : "/computers/" + computer }
     var mode = "starting"
     var helpMessage = ""
+    // The newest open help request. Requests never pause the computer.
+    var helpRequestID: String?
     var opening = false
     var quitting = false
     var shutdownComplete = false
@@ -232,7 +234,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 self.runtimeIssues = runtime["issues"] as? [String] ?? []
                 if self.runtimeReady { self.startupError = nil; self.startupStarted = nil; self.syncAppearance(status["appearance"] as? [String: Any]) }
                 if !self.viewerOpen && self.window?.isVisible == true { self.hideWindow() }
-                if self.mode == "pending", let request = status["request"] as? [String: Any], let id = request["id"] as? String {
+                let open = status["request"] as? [String: Any]
+                self.helpRequestID = open?["id"] as? String
+                if let request = open, let id = request["id"] as? String {
                     self.helpMessage = request["message"] as? String ?? "your ai needs your help."
                     if !self.notificationReady || self.notificationError != nil {
                         self.lastRequest = nil
@@ -267,10 +271,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
     }
 
+    @objc func dismissRequest() {
+        guard let id = helpRequestID else { return }
+        request("/dismiss-request", post: true, arguments: ["id": id]) { result in
+            if case .failure(let error) = result { self.showError(error.localizedDescription) }
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [id])
+            self.poll()
+        }
+    }
+
     func notifyOtherComputers() {
         guard notificationReady && notificationError == nil else { return }
         for entry in computers {
-            guard let name = entry["name"] as? String, name != computer, entry["mode"] as? String == "pending",
+            guard let name = entry["name"] as? String, name != computer,
                   let request = entry["request"] as? [String: Any], let id = request["id"] as? String, !notifiedRequests.contains(id) else { continue }
             notifiedRequests.insert(id)
             let content = UNMutableNotificationContent()
@@ -304,20 +317,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if mode != "paused" { pauseTip?.close() }
         let menu = NSMenu()
         menu.delegate = self
-        let state = (!runtimeReady && mode != "starting") ? "vm unavailable" : (["agent": "vm ready", "pending": "your help is needed", "human": "you have control", "paused": "vm paused", "starting": "starting vm…"][mode] ?? mode)
+        let helpNeeded = helpRequestID != nil && mode != "human"
+        let state = (!runtimeReady && mode != "starting") ? "vm unavailable" : helpNeeded ? "your help is needed" : (["agent": "vm ready", "human": "you have control", "paused": "vm paused", "starting": "starting vm…"][mode] ?? mode)
         menu.addItem(withTitle: state, action: nil, keyEquivalent: "")
-        if mode == "pending" { menu.addItem(withTitle: helpMessage, action: nil, keyEquivalent: "") }
+        if helpNeeded {
+            menu.addItem(withTitle: helpMessage, action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: "dismiss request", action: #selector(dismissRequest), keyEquivalent: "")
+        }
         if !setupComplete { menu.addItem(withTitle: "finish setup…", action: #selector(showSetup), keyEquivalent: "") }
         menu.addItem(.separator())
         let pause = menu.addItem(withTitle: automationPaused ? "resume automation" : "pause automation", action: #selector(togglePause), keyEquivalent: "")
-        pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human", "pending"].contains(mode))
+        pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human"].contains(mode))
         menu.autoenablesItems = false
         menu.addItem(withTitle: computers.count > 1 ? "open \(computer)" : "open computer", action: #selector(showBrowser), keyEquivalent: "")
         if computers.count > 1 {
             let submenu = NSMenu()
             for entry in computers {
                 guard let name = entry["name"] as? String else { continue }
-                let pending = entry["mode"] as? String == "pending"
+                let pending = entry["request"] is [String: Any]
                 let choice = submenu.addItem(withTitle: name + (pending ? " · needs help" : ""), action: #selector(selectComputer(_:)), keyEquivalent: "")
                 choice.representedObject = name
                 choice.state = name == computer ? .on : .off
@@ -336,7 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         for entry in menu.items where entry.action != nil && entry.target == nil { entry.target = self }
         for entry in menu.items where entry.action == nil && entry.submenu == nil { entry.isEnabled = false }
         if !statusMenuOpen && pauseTip?.isShown != true { item.menu = menu }
-        item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (mode == "paused" ? "pause.circle" : (setupComplete ? "globe" : "exclamationmark.circle")), accessibilityDescription: state)
+        item.button?.image = NSImage(systemSymbolName: helpNeeded ? "exclamationmark.bubble" : (mode == "paused" ? "pause.circle" : (setupComplete ? "globe" : "exclamationmark.circle")), accessibilityDescription: state)
         item.button?.toolTip = setupComplete ? state : "igor.computer needs setup"
         if mode != "paused" { pauseTip?.close() }
         else { schedulePauseTip() }
@@ -548,8 +565,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 return
             }
             self.request("/status") { result in
-                if case .success(let status) = result, status["mode"] as? String == "pending",
-                   let request = status["request"] as? [String: Any], request["id"] as? String == response.notification.request.identifier {
+                if case .success(let status) = result, let requests = status["requests"] as? [[String: Any]],
+                   requests.contains(where: { $0["id"] as? String == response.notification.request.identifier && $0["outcome"] is NSNull }) {
                     self.showBrowser()
                 }
                 completionHandler()

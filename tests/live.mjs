@@ -42,18 +42,20 @@ try {
   const handoff = await client.callTool({ name: 'browser_request_human', arguments: { pageId, message: 'Try typing in the browser verification page.' } });
   assert.ok(!handoff.isError, JSON.stringify(handoff));
   const requestId = JSON.parse(handoff.content[0].text).request.id;
-  assert.ok((await client.callTool({ name: 'take_snapshot', arguments: { pageId } })).isError);
+  // Asking for help never blocks the agent.
+  assert.ok(!(await client.callTool({ name: 'take_snapshot', arguments: { pageId } })).isError);
   await rpc('/take-control', {});
   assert.ok((await client.callTool({ name: 'evaluate_script', arguments: { pageId, function: '() => document.title' } })).isError);
   await rpc('/resume', {});
   const waited = await client.callTool({ name: 'browser_wait_human', arguments: { requestId, timeoutSeconds: 1 } });
   assert.equal(JSON.parse(waited.content[0].text).outcome, 'continued');
   assert.match(await evaluate('() => window.liveMarker'), /same-page-survived/);
-  await client.callTool({ name: 'browser_request_human', arguments: { pageId, message: 'Cancellation verification.' } });
-  await rpc('/cancel', {});
-  assert.ok((await client.callTool({ name: 'take_snapshot', arguments: { pageId } })).isError);
-  await rpc('/take-control', {});
-  await rpc('/resume', {});
-  console.log('PASS: MCP discovery, real rendering, live state, human lock, resume, cancellation, HTTP authorization.');
+  const dismissed = JSON.parse((await client.callTool({ name: 'browser_request_human', arguments: { pageId, message: 'Dismissal verification.' } })).content[0].text).request.id;
+  await rpc('/dismiss-request', { id: dismissed });
+  assert.equal(JSON.parse((await client.callTool({ name: 'browser_wait_human', arguments: { requestId: dismissed, timeoutSeconds: 1 } })).content[0].text).outcome, 'dismissed');
+  assert.ok(!(await client.callTool({ name: 'take_snapshot', arguments: { pageId } })).isError);
+  const withdrawn = JSON.parse((await client.callTool({ name: 'browser_request_human', arguments: { message: 'Withdrawal verification.' } })).content[0].text).request.id;
+  assert.ok(!(await client.callTool({ name: 'browser_withdraw_human', arguments: { requestId: withdrawn } })).isError);
+  console.log('PASS: MCP discovery, real rendering, live state, human lock, resume, non-blocking help requests, HTTP authorization.');
   console.log('Fixture page ID:', pageId);
 } finally { await client.close(); }

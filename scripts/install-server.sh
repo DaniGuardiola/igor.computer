@@ -55,7 +55,7 @@ try {
 if(response){
   if(!response.ok) throw new Error('Cannot safely inspect server ownership for update.');
   const {computers}=await response.json();
-  const busy=computers.find(item=>item.mode==='human' || item.mode==='pending' || item.activeTurns || ['waking','saving','building'].includes(item.state));
+  const busy=computers.find(item=>item.mode==='human' || item.activeTurns || ['waking','saving','building'].includes(item.state));
   if(busy) throw new Error(`Computer ${busy.name} is in use. Finish its turn or human takeover before updating the server.`);
 }
 CHECK

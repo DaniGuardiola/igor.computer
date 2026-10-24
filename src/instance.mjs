@@ -72,12 +72,12 @@ export async function createComputer({ context, appearance, browserTools, setupS
   const controlFile = join(context.dir, 'control.json');
   try {
     const previous = JSON.parse(await readFile(controlFile, 'utf8'));
-    control.request = previous.request || null;
+    // Open help requests survive restarts; they never held anything up.
+    control.requests = Array.isArray(previous.requests) ? previous.requests : [];
     control.automationPaused = previous.automationPaused === true;
     if (previous.mode !== 'agent' || previous.busy || previous.humanBusy) {
       control.mode = 'paused';
       control.automationPaused = true;
-      if (control.request && !control.request.outcome) control.request.outcome = 'cancelled';
     }
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   let controlWrites = Promise.resolve();
@@ -134,7 +134,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
     const setup = await setupStatus();
     const lifecycle = runtimeManager.status();
     const runtime = lifecycle.state === 'awake' ? { ...lifecycle, ...await computerHealth(), issues: [...lifecycle.issues, ...(await computerHealth()).issues] } : lifecycle;
-    return { computer: context.name, ...control.status(), appearance: appearance.value, setup, runtime, ...(control.mode === 'pending' ? { delivery: setup.notifications ? 'notification' : 'viewer', viewer: viewerUrl } : {}) };
+    return { computer: context.name, ...control.status(), appearance: appearance.value, setup, runtime, ...(control.status().request ? { delivery: setup.notifications ? 'notification' : 'viewer', viewer: viewerUrl } : {}) };
   }
   let initialization;
   async function requireComputer() {
@@ -223,16 +223,17 @@ export async function createComputer({ context, appearance, browserTools, setupS
     if (path === '/status') return getStatus();
     if (path === '/tools') return { tools: await tools() };
     if (path === '/request-human') {
-      await requireComputer();
       if (typeof args.message !== 'string' || !args.message.trim() || args.message.length > 300) throw new Error('Provide a short human-help message.');
       if (args.pageId !== undefined) {
+        await requireComputer();
         requireBrowserCapability();
         if (!Number.isInteger(args.pageId)) throw new Error('Invalid page ID.');
         await runAgent(async () => (await browserClient(workspace)).callTool({ name: 'select_page', arguments: { pageId: args.pageId } }), workspace);
       }
-      await changeControl(() => control.requestHuman(args.message.trim(), args.pageId, workspace));
-      return getStatus();
+      const request = await changeControl(() => control.requestHuman(args.message.trim(), args.pageId, workspace));
+      return { ...await getStatus(), request };
     }
+    if (path === '/withdraw-request') return { request: await changeControl(() => control.withdraw(args.requestId, workspace)) };
     if (path === '/computer-use') {
       if (!uiTools.some(tool => tool.name === args.name)) throw new Error('Unknown desktop tool.');
       return runAgent(async () => {
@@ -367,7 +368,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
       }));
     }
     if (path === '/watch') {
-      await openWatch(args.name || (control.mode === 'pending' ? control.request?.workspace : null) || control.viewedWorkspace);
+      await openWatch(args.name || control.status().request?.workspace || control.viewedWorkspace);
       return json(res, control.status());
     }
     if (path === '/release-control') {
@@ -376,7 +377,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
       disconnectViewer();
       return json(res, status);
     }
-    if (['/computer-use', '/computer', '/request-human', '/call'].includes(path)) return json(res, await dispatch(path, args, undefined, workspace, label));
+    if (['/computer-use', '/computer', '/request-human', '/withdraw-request', '/call'].includes(path)) return json(res, await dispatch(path, args, undefined, workspace, label));
     if (path === '/windows') {
       if (control.mode !== 'human') throw new Error('Take control to manage windows.');
       const state = await viewedState();
@@ -385,7 +386,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
       return json(res, await control.runHuman(() => guest.windows(args.action, args)));
     }
     if (path === '/take-control') {
-      const name = args.name || (control.mode === 'pending' ? control.request?.workspace : null) || control.viewedWorkspace;
+      const name = args.name || control.status().request?.workspace || control.viewedWorkspace;
       const available = await computer('workspace_list');
       if (!available.workspaces.some(item => item.name === name)) throw new Error('Unknown workspace.');
       await changeControl(async () => {
@@ -414,7 +415,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
     if (path === '/close-viewer') return json(res, await changeControl(() => { const status = control.closeViewer(); runtimeManager.lastUsed = Date.now(); disconnectViewer(); return status; }));
     if (path === '/pause') return json(res, await changeControl(() => control.pause()));
     if (path === '/resume') return json(res, await changeControl(() => { const status = control.resume(); disconnectViewer(); return status; }));
-    if (path === '/cancel') { disconnectViewer(); return json(res, await changeControl(() => control.cancel())); }
+    if (path === '/dismiss-request') return json(res, { request: await changeControl(() => control.dismiss(args.id)) });
     if (path === '/rebuild') {
       await initialization;
       disconnectViewer();
@@ -486,7 +487,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
   }
   async function summary() {
     const lifecycle = runtimeManager.status();
-    return { name: context.name, source: context.source, state: lifecycle.state, issues: lifecycle.issues, mode: control.mode, request: control.request, viewerOpen: control.viewerOpen,
+    return { name: context.name, source: context.source, state: lifecycle.state, issues: lifecycle.issues, mode: control.mode, request: control.status().request, openRequests: control.openRequests().length, viewerOpen: control.viewerOpen,
       // Before the first build, report what the definition asks for.
       ...(runtimeManager.state === 'awake' ? { browser: runtimeManager.browser, mcp: Object.keys(guest.manifest.mcp || {}) }
         : { browser: runtimeManager.definition?.definition.browser ?? true, mcp: Object.keys(runtimeManager.definition?.definition.mcp ?? guest.manifest.mcp ?? {}) }),
@@ -502,5 +503,5 @@ export async function createComputer({ context, appearance, browserTools, setupS
   }
   return { context, handle, upgrade, idle, start, summary, close, getStatus, control, runtime: runtimeManager,
     applyAppearance: () => runtimeManager.state === 'awake' ? applied.ensure() : undefined,
-    busy: () => control.busy || control.mode === 'human' || control.mode === 'pending' || runtimeManager.turns.size > 0 };
+    busy: () => control.busy || control.mode === 'human' || runtimeManager.turns.size > 0 };
 }

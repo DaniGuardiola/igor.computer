@@ -1,9 +1,10 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 const extras = [
-  { name: 'browser_status', description: 'Check computer ownership, VM lifecycle, active turns and pending human help.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'browser_request_human', description: 'Pause browser automation and notify the user for login, CAPTCHA, or another human step. Does not focus any user window. The user chooses when to open the browser. Use browser_wait_human before continuing.', inputSchema: { type: 'object', properties: { message: { type: 'string', minLength: 1, maxLength: 300 }, pageId: { type: 'integer' } }, required: ['message'], additionalProperties: false } },
-  { name: 'browser_wait_human', description: 'Wait for a specific human-help request. Returns continued, cancelled, or waiting. Open the authenticated viewer URL if no notification client is connected. Resume browser work only after continued and inspect fresh page state. Cancellation leaves automation paused.', inputSchema: { type: 'object', properties: { requestId: { type: 'string' }, timeoutSeconds: { type: 'number', minimum: 1, maximum: 60 } }, required: ['requestId'], additionalProperties: false } },
+  { name: 'browser_status', description: 'Check computer ownership, VM lifecycle, active turns and help requests.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'browser_request_human', description: 'Ask the person for help with a login, CAPTCHA, payment, secret or decision. This only notifies them: nothing pauses, and you can keep working on other things. Returns the request; check on it with browser_wait_human. A new request from you replaces your previous open one. If you solve it another way, call browser_withdraw_human.', inputSchema: { type: 'object', properties: { message: { type: 'string', minLength: 1, maxLength: 300 }, pageId: { type: 'integer' } }, required: ['message'], additionalProperties: false } },
+  { name: 'browser_wait_human', description: 'Wait up to timeoutSeconds for a help request to resolve. Outcomes: continued (the person took control and handed it back; look at the page again before going on), dismissed (the person declined; do not retry it unasked), withdrawn, replaced, expired, or waiting (still open; you may keep waiting or do other work). If no notification reached the person, give them the returned viewer URL.', inputSchema: { type: 'object', properties: { requestId: { type: 'string' }, timeoutSeconds: { type: 'number', minimum: 1, maximum: 60 } }, required: ['requestId'], additionalProperties: false } },
+  { name: 'browser_withdraw_human', description: 'Withdraw your open help request, for example when you found another way or the person answered in chat.', inputSchema: { type: 'object', properties: { requestId: { type: 'string' } }, required: ['requestId'], additionalProperties: false } },
 ];
 
 export function createMcpServer(call) {
@@ -20,10 +21,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
       const seconds = args.timeoutSeconds ?? 55;
       if (typeof seconds !== 'number' || seconds < 1 || seconds > 60) throw new Error('Timeout must be between 1 and 60 seconds.');
       const deadline = Date.now() + seconds * 1000;
+      let request;
       do {
         result = await call('/status', undefined, extra.signal);
-        if (result.request?.id !== args.requestId) throw new Error('Human-help request is no longer current.');
-        if (result.request.outcome) break;
+        request = result.requests?.find(item => item.id === args.requestId);
+        if (!request) throw new Error('Unknown or expired help request.');
+        if (request.outcome) break;
         await new Promise((resolve, reject) => {
           const timer = setTimeout(done, 500);
           function done() { extra.signal.removeEventListener('abort', abort); resolve(); }
@@ -32,7 +35,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
           if (extra.signal.aborted) abort();
         });
       } while (Date.now() < deadline);
-      result = { ...result, outcome: result.request?.outcome || 'waiting' };
+      result = { request, outcome: request.outcome || 'waiting', ...(result.viewer ? { viewer: result.viewer, delivery: result.delivery } : {}) };
+    } else if (req.params.name === 'browser_withdraw_human') {
+      result = await call('/withdraw-request', args, extra.signal);
     } else if (req.params.name.startsWith('computer_ui_')) {
       return await call('/computer-use', req.params, extra.signal);
     } else if (req.params.name.startsWith('computer_')) {

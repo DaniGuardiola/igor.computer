@@ -64,11 +64,14 @@ an ID.
 
 When a step needs the person (a login, a CAPTCHA, a payment, a secret, a
 judgment call), call `browser_request_human` with a short message naming the
-site and the exact step, plus the `pageId`. Then call `browser_wait_human` with
-the returned request ID, and keep waiting while the outcome is `waiting`.
+site and the exact step, plus the `pageId`. Asking doesn't pause anything: keep
+working on other parts of the task if you can. Check on it with
+`browser_wait_human` and the returned request ID.
 
-- Continue only on `continued`, and look at the page again first.
-- On `cancelled`, stop the task.
+- `continued`: the person took control and handed it back. Look at the page again, then go on.
+- `dismissed`: the person declined. Don't ask again for the same thing unless they say so.
+- `waiting`: still open. Wait again, or carry on with other work and check back.
+- If the person helps you some other way (for example in chat), call `browser_withdraw_human`.
 - If no notification reached the person, give them the returned viewer URL.
 - Never enter secrets or solve CAPTCHAs yourself.
 

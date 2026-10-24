@@ -245,7 +245,7 @@ extension AppDelegate {
         if SMAppService.mainApp.status == .enabled { setupLabels["login"]?.stringValue = "available whenever you log in" }
         setupDescription?.stringValue = "a computer for your agent."
         setupSummary?.isHidden = setupComplete && appearanceError == nil
-        setupSummary?.stringValue = appearanceError ?? (mode == "pending" ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar.")
+        setupSummary?.stringValue = appearanceError ?? (helpRequestID != nil ? "your ai is waiting. finish the steps above to help." : "finish setup now, or come back from the menu bar.")
         setupPrimary?.isEnabled = runtimeReady
         setupLog?.isHidden = startupError == nil && runtimeIssues.isEmpty
         if let window = setupWindow, let view = window.contentView {

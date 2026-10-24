@@ -60,7 +60,7 @@ JavaScript. Navigating a page doesn't need screenshots or mouse clicks.
 | `computer_begin_turn`, `computer_end_turn` | Keep the computer awake for a whole task. |
 | `computer_sleep`, `computer_wake` | Sleep or wake the computer explicitly. |
 | `browser_status` | Who controls the computer, its state, active turns and help requests. |
-| `browser_request_human`, `browser_wait_human` | Ask the person for help, then wait for them. |
+| `browser_request_human`, `browser_wait_human`, `browser_withdraw_human` | Ask the person for help, check on the request, or withdraw it. |
 | `SERVER__TOOL` | Tools from MCP servers that the computer's definition runs inside it. |
 
 Accessibility support depends on what each app exposes. Chromium's accessibility
@@ -117,8 +117,15 @@ stays paused until you turn it back on.
 
 **Help requests.** An agent calls `browser_request_human` with a short message.
 The Mac app shows a notification, from any computer. Without the app, the agent
-gets a viewer URL to pass on. The request resolves to `continued` when you hand
-back control, or `cancelled`, which means the agent should stop.
+gets a viewer URL to pass on. A request only asks: nothing pauses, so the agent
+can keep working on something else, and you can answer it however you like.
+
+- Take control of the agent's workspace and hand it back: the request is `continued`.
+- Choose **dismiss request** in the menu: the request is `dismissed`.
+- Tell the agent some other way (in chat, say), and it withdraws the request itself.
+- Ignore it: it expires after a day.
+
+Each agent has at most one open request; asking again replaces it.
 
 While an agent works, the viewer shows its avatar, a cursor hint where it clicks,
 and typing indicators. The text it types, URLs, selectors and scripts are never
@@ -134,8 +141,7 @@ name, unless reduced motion is on.
 
 After five idle minutes (configurable per computer with `idleSleep`), the server
 saves the VM's memory and disk with QEMU and stops it. A computer never sleeps
-during a turn, a running command, a pending help request or while you're in
-control. Checking status doesn't wake it; the next tool call does. On a Mac,
+during a turn, a running command or while you're in control. Checking status doesn't wake it; the next tool call does. On a Mac,
 sleeping takes about 3 seconds and waking about 5.
 
 Waking restores the saved memory before the VM runs anything, so open pages,
@@ -160,9 +166,9 @@ computer before upgrading QEMU. Saved memory only works on the same machine.
 A turn (`computer_begin_turn` … `computer_end_turn`) keeps the computer awake
 for a whole task, including the gaps between tool calls. Turns survive server
 restarts and never expire on their own, so an agent that crashes mid-turn leaves
-the computer awake until someone ends its turn. After a server restart, a
-pending help request or takeover comes back paused, so automation never resumes
-by itself.
+the computer awake until someone ends its turn. After a server restart, an
+interrupted takeover comes back paused, so automation never resumes by itself.
+Open help requests survive restarts.
 
 ## Security
 
