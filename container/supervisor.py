@@ -66,8 +66,8 @@ try:
            '-shared', '-rfbport', '5900', '-quiet'])
     # Web pages in Chromium must not be able to open an unauthenticated desktop
     # connection through guest localhost. Only the trusted host proxy knows this.
-    display_credentials = 'igor-vm:' + secrets.token_urlsafe(32)
-    descriptor = os.open('/tmp/igor-vm-display-auth', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    display_credentials = 'igor-computer:' + secrets.token_urlsafe(32)
+    descriptor = os.open('/tmp/igor-computer-display-auth', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(descriptor, 'w') as file:
         file.write(display_credentials)
     start(['websockify', '--web=/usr/share/novnc', '--web-auth',
@@ -87,9 +87,9 @@ try:
                      '--no-startup-window', '--force-renderer-accessibility']
     def launch_browser():
         process = start(browser_args)
-        with open('/tmp/igor-browser-generation.tmp', 'w') as file:
+        with open('/tmp/igor-computer-generation.tmp', 'w') as file:
             json.dump({'generation': str(uuid.uuid4())}, file)
-        os.replace('/tmp/igor-browser-generation.tmp', '/tmp/igor-browser-generation.json')
+        os.replace('/tmp/igor-computer-generation.tmp', '/tmp/igor-computer-generation.json')
         return process
     browser = launch_browser()
     restart_attempts = []

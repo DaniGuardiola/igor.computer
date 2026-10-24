@@ -11,17 +11,17 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { BrowserWorkspaces, recoveredRequest } from '../src/browser-workspace.mjs';
 const exec = promisify(execFile);
-const name = 'igor-vm-window-test-' + randomUUID().slice(0, 8);
+const name = 'igor-computer-window-test-' + randomUUID().slice(0, 8);
 const volume = name + '-profile';
 const docker = async (...args) => (await exec('docker', args, { timeout: 60000, maxBuffer: 2 * 1024 * 1024, env: runtimeEnv })).stdout.trim();
 const tunnel = action => exec('ssh', ['-F', join(vmDir, 'ssh.config'), '-O', action, '-L', '127.0.0.1:18432:127.0.0.1:18432', 'lima-' + vmName]);
-const computer = async (action, args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-browser/computer.py', action, JSON.stringify(args)));
-const windows = async (action = 'list', args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-browser/windows.py', action, ...(action === 'list' ? [] : [args.id || '', args.generation])));
+const computer = async (action, args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-computer/computer.py', action, JSON.stringify(args)));
+const windows = async (action = 'list', args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-computer/windows.py', action, ...(action === 'list' ? [] : [args.id || '', args.generation])));
 async function waitFor(check) { for (let i = 0; i < 60; i++) { try { const result = await check(); if (result) return result; } catch {} await delay(250); } throw Error('Timed out'); }
 let socket, a, b, fresh;
 try {
   await tunnel('forward');
-  await docker('run', '-d', '--name', name, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges=true', '--security-opt', 'seccomp=' + process.cwd() + '/container/seccomp.json', '--shm-size', '512m', '--memory', '2g', '--cpus', '2', '-p', '127.0.0.1:18432:9222', '-v', volume + ':/profile', 'igor-vm:0.2.0');
+  await docker('run', '-d', '--name', name, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges=true', '--security-opt', 'seccomp=' + process.cwd() + '/container/seccomp.json', '--shm-size', '512m', '--memory', '2g', '--cpus', '2', '-p', '127.0.0.1:18432:9222', '-v', volume + ':/profile', 'igor-computer:0.2.0');
   const version = await waitFor(async () => { const response = await fetch('http://127.0.0.1:18432/json/version'); return response.ok && response.json(); });
   assert.equal((await windows()).windows.length, 0);
   socket = new WebSocket(version.webSocketDebuggerUrl.replace('127.0.0.1:9223', '127.0.0.1:18432').replace('localhost:9223', '127.0.0.1:18432'));

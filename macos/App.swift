@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
     var origin: String { UserDefaults.standard.string(forKey: "serverOrigin") ?? "http://127.0.0.1:18420" }
     var token: String? {
-        let path = UserDefaults.standard.string(forKey: "serverTokenFile") ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Igor Browser/token").path
+        let path = UserDefaults.standard.string(forKey: "serverTokenFile") ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/igor.computer/token").path
         let url = URL(fileURLWithPath: path)
         return try? String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -129,11 +129,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
         refreshSetup()
         updateMenu()
-        if CommandLine.arguments.contains("--migrate-login") && SMAppService.mainApp.status == .enabled {
-            // Refresh the registered path after renaming the installed app.
-            do { try SMAppService.mainApp.unregister(); try SMAppService.mainApp.register() }
-            catch { loginError = error.localizedDescription }
-        }
         if CommandLine.arguments.contains("--enable-login") && SMAppService.mainApp.status == .notRegistered {
             do { try SMAppService.mainApp.register() } catch { NSLog("Login registration failed: %@", error.localizedDescription) }
         }
@@ -148,11 +143,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func startService() {
         guard worker?.isRunning != true, startupError == nil, installedCorrectly,
               let script = Bundle.main.url(forResource: "ensure-service", withExtension: "sh") else { return }
-        guard origin == "http://127.0.0.1:18420" else { startupError = "could not reach the vm server. check its address and connection."; refreshSetup(); return }
+        guard origin == "http://127.0.0.1:18420" else { startupError = "could not reach the computer server. check its address and connection."; refreshSetup(); return }
         guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/limactl"),
               FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/qemu-system-aarch64"),
               FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/docker") else {
-            startupError = "the browser runtime is missing. install lima, qemu and docker to continue."
+            startupError = "the computer runtime is missing. install lima, qemu and docker to continue."
             refreshSetup(); return
         }
         startupStarted = startupStarted ?? Date()
@@ -160,7 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path]
         let directory = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/Igor VM")
+            .appendingPathComponent("Library/Logs/igor.computer")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let log = directory.appendingPathComponent("server.log")
         if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
@@ -172,7 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         process.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
                 guard let self = self, self.worker === process, process.terminationStatus != 0 else { return }
-                self.startupError = "the browser runtime could not start. check its log, then retry."
+                self.startupError = "the computer runtime could not start. check its log, then retry."
                 self.runtimeReady = false
                 self.showSetup()
                 self.refreshSetup()
@@ -183,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func request(_ path: String, post: Bool = false, arguments: [String: Any]? = nil, completion: @escaping (Result<[String: Any], Error>) -> Void) {
         guard let token = token else {
-            completion(.failure(NSError(domain: "IgorBrowser", code: 1, userInfo: [NSLocalizedDescriptionKey: "browser service is starting."])))
+            completion(.failure(NSError(domain: "IgorComputer", code: 1, userInfo: [NSLocalizedDescriptionKey: "computer service is starting."])))
             return
         }
         var request = URLRequest(url: URL(string: origin + path)!)
@@ -199,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 if let error = error { completion(.failure(error)); return }
                 let object = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any] ?? [:]
                 if (response as? HTTPURLResponse)?.statusCode != 200 {
-                    completion(.failure(NSError(domain: "IgorBrowser", code: 2, userInfo: [NSLocalizedDescriptionKey: object["error"] as? String ?? "browser unavailable."])))
+                    completion(.failure(NSError(domain: "IgorComputer", code: 2, userInfo: [NSLocalizedDescriptionKey: object["error"] as? String ?? "computer unavailable."])))
                 } else { completion(.success(object)) }
             }
         }.resume()
@@ -381,7 +376,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.title = "igor.computer · you have control"
         window.delegate = self
         window.isReleasedWhenClosed = false
-        window.setFrameAutosaveName("IgorBrowserViewer")
+        window.setFrameAutosaveName("IgorComputerViewer")
         let view = NSView()
         window.contentView = view
         configureBrowserToolbar(window)

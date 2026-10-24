@@ -86,7 +86,7 @@ export class Runtime {
     this.operation = (async () => {
       try {
         const qemu = `qemu-system-${arch() === 'arm64' ? 'aarch64' : 'x86_64'}`;
-        await exec('docker', ['exec', 'igor-vm', 'sync'], { env: runtimeEnv, timeout: 10000 });
+        await exec('docker', ['exec', 'igor-computer', 'sync'], { env: runtimeEnv, timeout: 10000 });
         await saveSnapshot(vmDir, qemu);
         // Force stops QEMU without asking the saved guest to shut down.
         await exec('limactl', ['stop', '--force', vmName], { env: runtimeEnv, timeout: 30000 });

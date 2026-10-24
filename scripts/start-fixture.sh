@@ -23,8 +23,8 @@ const value=await response.json();
 if(!response.ok) throw new Error(value.error);
 if(value.state!=='awake') throw new Error('Computer is not ready for verification.');
 JS
-docker exec igor-vm mkdir -p /tmp/igor-browser-fixture
-docker cp tests/fixture.html igor-vm:/tmp/igor-browser-fixture/index.html
-if ! docker exec igor-vm pgrep -f '^python3 -m http.server 19080 ' >/dev/null; then
-  docker exec -d igor-vm python3 -m http.server 19080 --bind 127.0.0.1 --directory /tmp/igor-browser-fixture
+docker exec igor-computer mkdir -p /tmp/igor-computer-fixture
+docker cp tests/fixture.html igor-computer:/tmp/igor-computer-fixture/index.html
+if ! docker exec igor-computer pgrep -f '^python3 -m http.server 19080 ' >/dev/null; then
+  docker exec -d igor-computer python3 -m http.server 19080 --bind 127.0.0.1 --directory /tmp/igor-computer-fixture
 fi

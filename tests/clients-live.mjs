@@ -25,9 +25,9 @@ try {
     const value = await tool(clients[i], 'evaluate_script', { pageId: pages[i], function: '() => location.href' });
     assert.match(JSON.stringify(value), new RegExp('verification-' + (i === 0 ? 'a' : 'b')));
   }
-  const first = await tool(clients[0], 'evaluate_script', { pageId: pages[0], function: "() => { document.cookie='igor_vm_clients=shared; Max-Age=3600; SameSite=Lax'; return true; }" });
+  const first = await tool(clients[0], 'evaluate_script', { pageId: pages[0], function: "() => { document.cookie='igor_computer_clients=shared; Max-Age=3600; SameSite=Lax'; return true; }" });
   const second = await tool(clients[1], 'evaluate_script', { pageId: pages[1], function: '() => document.cookie' });
-  assert.match(JSON.stringify(second), /igor_vm_clients=shared/);
+  assert.match(JSON.stringify(second), /igor_computer_clients=shared/);
   console.log('PASS: independent DevTools page selection, same browser cookies across agent clients.');
 } finally {
   for (let i = 0; i < clients.length; i++) { if (pages[i]) await tool(clients[i], 'close_page', { pageId: pages[i] }).catch(() => {}); await clients[i].close(); }

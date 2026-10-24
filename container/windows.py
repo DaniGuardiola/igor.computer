@@ -10,7 +10,7 @@ def run(*args):
 
 
 def generation():
-    with open('/tmp/igor-browser-generation.json') as file:
+    with open('/tmp/igor-computer-generation.json') as file:
         return json.load(file)['generation']
 
 

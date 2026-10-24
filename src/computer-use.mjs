@@ -82,9 +82,9 @@ function resultData(result) {
 export class ComputerUse {
   clients = new Map();
   constructor(connect = async workspace => {
-    const client = new Client({ name: 'igor-vm-' + workspace, version: '0.2.0' });
+    const client = new Client({ name: 'igor-computer-' + workspace, version: '0.2.0' });
     await client.connect(new StdioClientTransport({
-      command: 'docker', args: ['exec', '-i', 'igor-vm', 'computer-use-linux', 'mcp'],
+      command: 'docker', args: ['exec', '-i', 'igor-computer', 'computer-use-linux', 'mcp'],
       env: runtimeEnv, stderr: 'inherit',
     }));
     return client;

@@ -13,14 +13,14 @@ fi
 if docker container inspect "$container" >/dev/null 2>&1; then
   docker start "$container"
 else
-  docker volume create igor-vm-profile >/dev/null
-  docker volume create igor-vm-home >/dev/null
-  docker volume create igor-vm-workspace >/dev/null
+  docker volume create igor-computer-profile >/dev/null
+  docker volume create igor-computer-home >/dev/null
+  docker volume create igor-computer-workspace >/dev/null
   docker run -d --name "$container" --restart unless-stopped \
     --cap-drop ALL --security-opt no-new-privileges=true \
     --security-opt "seccomp=$PWD/container/seccomp.json" \
     --shm-size 512m --memory 2g --cpus 2 \
     -p 127.0.0.1:18422:9222 -p 127.0.0.1:18423:6080 \
-    -v igor-vm-profile:/profile -v igor-vm-home:/home/browser \
-    -v igor-vm-workspace:/workspace "$image"
+    -v igor-computer-profile:/profile -v igor-computer-home:/home/browser \
+    -v igor-computer-workspace:/workspace "$image"
 fi

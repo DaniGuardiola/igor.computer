@@ -8,7 +8,7 @@ import { rosterScript } from './agent-roster.mjs';
 const script = String.raw`
 import configparser,json,sys,subprocess,time,base64
 from pathlib import Path
-sys.path.insert(0,'/opt/igor-browser')
+sys.path.insert(0,'/opt/igor-computer')
 from windows import windows,run
 apps=[]
 for file in sorted(Path('/usr/share/applications').glob('*.desktop')):

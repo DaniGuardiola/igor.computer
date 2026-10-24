@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import net from 'node:net';
 
-const directory = await mkdtemp(join(tmpdir(), 'igor-vm-test-'));
-process.env.IGOR_VM_STATE_DIR = directory;
-process.env.IGOR_VM_LIMA_HOME = directory;
+const directory = await mkdtemp(join(tmpdir(), 'igor-computer-test-'));
+process.env.IGOR_COMPUTER_STATE_DIR = directory;
+process.env.IGOR_COMPUTER_LIMA_HOME = directory;
 const { Runtime } = await import('../src/runtime.mjs');
 const { Control } = await import('../src/control.mjs');
 const { qmp, saveSnapshot, validateSnapshot } = await import('../src/snapshot.mjs');

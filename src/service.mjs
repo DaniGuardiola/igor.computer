@@ -136,7 +136,7 @@ async function requireBrowser() {
   if (!health.ready) throw new Error(health.issues.join(' '));
   await appearance.ensure();
 }
-const upstream = new Client({ name: 'igor-vm-service', version: '0.2.0' });
+const upstream = new Client({ name: 'igor-computer-service', version: '0.2.0' });
 const transportOptions = {
   command: process.execPath,
   args: [join(base, '../node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'),
@@ -148,7 +148,7 @@ const browserClients = new Map([['shared', upstream]]);
 async function browserClient(workspace) {
   if (browserClients.has(workspace)) return browserClients.get(workspace);
   if (browserClients.size >= 32) throw new Error('Maximum 32 browser client workspaces.');
-  const client = new Client({ name: 'igor-vm-' + workspace, version: '0.2.0' });
+  const client = new Client({ name: 'igor-computer-' + workspace, version: '0.2.0' });
   browserClients.set(workspace, client);
   try { await client.connect(new StdioClientTransport(transportOptions)); }
   catch (error) { browserClients.delete(workspace); throw error; }
@@ -182,7 +182,7 @@ function secretMatches(value) {
 }
 function authorized(req) {
   const bearer = req.headers.authorization?.replace(/^Bearer /, '');
-  const cookie = /(?:^|;\s*)igor_browser=([^;]+)/.exec(req.headers.cookie || '')?.[1];
+  const cookie = /(?:^|;\s*)igor_computer=([^;]+)/.exec(req.headers.cookie || '')?.[1];
   return secretMatches(bearer) || secretMatches(cookie);
 }
 function sameOrigin(req) {
@@ -318,7 +318,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (!authorized(req)) return json(res, { error: 'Unauthorized.' }, 401);
     if (path === '/session' && req.method === 'POST') {
-      res.setHeader('Set-Cookie', `igor_browser=${token}; HttpOnly; SameSite=Strict; Path=/${origin.startsWith('https:') ? '; Secure' : ''}`);
+      res.setHeader('Set-Cookie', `igor_computer=${token}; HttpOnly; SameSite=Strict; Path=/${origin.startsWith('https:') ? '; Secure' : ''}`);
       return json(res, { ok: true });
     }
     if (path === '/mcp') {

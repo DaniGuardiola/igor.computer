@@ -110,8 +110,8 @@ def execute(action, args):
         for file in Path('/proc').glob('[0-9]*/cmdline'):
             try:
                 parts = file.read_bytes().split(b'\0')
-                if b'/opt/igor-browser/computer.py' in parts:
-                    index = parts.index(b'/opt/igor-browser/computer.py')
+                if b'/opt/igor-computer/computer.py' in parts:
+                    index = parts.index(b'/opt/igor-computer/computer.py')
                     if len(parts) > index + 1 and parts[index + 1] != b'status': busy = True
             except OSError: pass
         return {'busy': busy}

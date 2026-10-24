@@ -16,7 +16,7 @@ settings without restarting apps. New Chromium profiles use its stock GTK theme;
 users can still choose custom browser themes independently.
 
 The agent's conversation, orchestration and task state belong outside this
-computer. Igor connects through `@igor.ai/extension-vm`, with Lightpanda first,
+computer. Igor connects through `@igor.ai/extension-computer`, with Lightpanda first,
 igor.computer second, and My browser last. The server also connects to any other MCP
 client; it does not depend on Igor.
 
@@ -33,9 +33,8 @@ bash scripts/install-mac.sh --replace --enable-login
 ```
 
 The app installs an independent LaunchAgent server in
-`~/Library/Application Support/Igor VM/server`. It bundles Node and dependencies,
-so neither the app nor server needs this checkout. The bundle identifier and credential directory remain stable across the rename,
-so existing notification permissions and credentials are retained. The native app guides
+`~/Library/Application Support/igor.computer/server`. It bundles Node and dependencies,
+so neither the app nor server needs this checkout. The native app guides
 notifications and its own login registration. The server starts independently
 at login and stays available when the app quits. First start builds the guest
 image. DMG and Homebrew distribution details are in [distribution](distribution/README.md).
@@ -61,10 +60,10 @@ For local stdio MCP, configure your client with absolute installed paths:
 ```json
 {
   "mcpServers": {
-    "igor-vm": {
-      "command": "/Users/NAME/Library/Application Support/Igor VM/server/bin/node",
-      "args": ["/Users/NAME/Library/Application Support/Igor VM/server/src/mcp.mjs"],
-      "env": {"IGOR_VM_WORKSPACE": "agent-name"}
+    "igor-computer": {
+      "command": "/Users/NAME/Library/Application Support/igor.computer/server/bin/node",
+      "args": ["/Users/NAME/Library/Application Support/igor.computer/server/src/mcp.mjs"],
+      "env": {"IGOR_COMPUTER_WORKSPACE": "agent-name"}
     }
   }
 }
@@ -72,7 +71,7 @@ For local stdio MCP, configure your client with absolute installed paths:
 
 Remote clients can use authenticated Streamable HTTP at `https://HOST/mcp`,
 with `Authorization: Bearer CREDENTIAL` and an optional `X-Igor-Workspace` header.
-The stdio bridge also supports `IGOR_VM_URL` and `IGOR_VM_TOKEN_FILE`. Credentials
+The stdio bridge also supports `IGOR_COMPUTER_URL` and `IGOR_COMPUTER_TOKEN_FILE`. Credentials
 belong in private client configuration/files, never prompts or tool arguments.
 The default workspace is `shared`; use a distinct workspace name per agent for
 independent DevTools selection state.
@@ -85,15 +84,15 @@ By default the server binds only `127.0.0.1:18420`. To publish it through your
 own TLS reverse proxy, create `server.json` in the state directory:
 
 ```json
-{"HOST":"127.0.0.1","PORT":18420,"ORIGIN":"https://vm.example.com","IDLE_SECONDS":300}
+{"HOST":"127.0.0.1","PORT":18420,"ORIGIN":"https://computer.example.com","IDLE_SECONDS":300}
 ```
 
 Preserve the public Host header and forward WebSocket upgrades. Expose only the
 authenticated service port, never raw CDP/VNC or the Docker socket. A non-loopback
 bind requires an HTTPS public origin; the TLS reverse proxy terminates TLS.
-Environment variables `IGOR_VM_HOST`, `IGOR_VM_PORT`, `IGOR_VM_ORIGIN`,
-`IGOR_VM_IDLE_SECONDS`, `IGOR_VM_NAME`, `IGOR_VM_LIMA_HOME` and
-`IGOR_VM_STATE_DIR` override configuration. This version runs one persistent
+Environment variables `IGOR_COMPUTER_HOST`, `IGOR_COMPUTER_PORT`, `IGOR_COMPUTER_ORIGIN`,
+`IGOR_COMPUTER_IDLE_SECONDS`, `IGOR_COMPUTER_NAME`, `IGOR_COMPUTER_LIMA_HOME` and
+`IGOR_COMPUTER_STATE_DIR` override configuration. This version runs one persistent
 computer per host; multi-user hosting needs separate hosts or isolated VM services.
 
 ## Computer tools
@@ -210,21 +209,6 @@ On service restart, pending human ownership returns paused. Active turn leases
 remain protected. On snapshot failure, the server reports the error and attempts
 to keep the live VM usable instead of discarding state.
 
-## Migration and rollback
-
-`scripts/migrate-browser.sh` copies the former Colima profile after clean shutdown.
-It refuses to overwrite an existing target profile and saves a private tar backup.
-The previous VM and volume remain intact. The macOS installer archives the
-former app in the same private backup directory and refreshes its login path. VZ-to-QEMU migration restarts Chromium
-once; saved sessions transfer, unsaved RAM cannot transfer between drivers.
-
-The initial migration has a Git checkpoint tag,
-`checkpoint/browser-before-vm-20261010`, and a profile backup under
-`~/Library/Application Support/Igor VM/backups`. To roll back, stop the new server
-LaunchAgent, stop `igor-vm`, restore the checkpoint app/code and start the old
-Colima profile. Keep the newer VM/data until you decide whether to migrate any
-changes back. Git rollback alone does not roll back browser data.
-
 ## Verification
 
 ```sh
@@ -260,7 +244,7 @@ x11vnc and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtoo
 
 ### Viewer workspaces
 
-The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_VM_WORKSPACE_LABEL`. Create extra named workspaces from the picker. The taskbar’s browser icon opens or focuses a browser in the selected workspace. Closing every window leaves the desktop empty; browser commands lazily reopen a window in the caller’s own workspace. Desktop and shell tools do not launch a browser. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.
+The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_COMPUTER_WORKSPACE_LABEL`. Create extra named workspaces from the picker. The taskbar’s browser icon opens or focuses a browser in the selected workspace. Closing every window leaves the desktop empty; browser commands lazily reopen a window in the caller’s own workspace. Desktop and shell tools do not launch a browser. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.
 
 
 To verify the installed desktop backend, finish human control and run

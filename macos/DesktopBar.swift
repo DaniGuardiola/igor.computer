@@ -1,6 +1,6 @@
 import AppKit
 
-private let appDragType = NSPasteboard.PasteboardType("ai.igor.vm.app")
+private let appDragType = NSPasteboard.PasteboardType("ai.igor.computer.app")
 
 class AppPinButton: BrowserHoverButton, NSDraggingSource {
     var appID = ""

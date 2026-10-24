@@ -10,4 +10,4 @@ Before distribution: use Developer ID signing for the app, bundled Node, and Spa
 
 Render `igor-computer.rb.in` with the actual version, release artifact SHA-256, and download URL into a Homebrew tap. Use `auto_updates true` only for builds with a live Sparkle feed. Validate the rendered cask with Homebrew before publishing. The current repository and releases remain private; public appcast/download URLs are not configured. A private authenticated update host would need an explicit separate design.
 
-No installer or uninstall step removes `igor-vm-profile`, `igor-vm-home`, or `igor-vm-workspace`: they contain the user's browser session. Removing those volumes must be an explicit user action.
+No installer or uninstall step removes `igor-computer-profile`, `igor-computer-home`, or `igor-computer-workspace`: they contain the user's browser session. Removing those volumes must be an explicit user action.

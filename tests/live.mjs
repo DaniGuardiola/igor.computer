@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const token = (await readFile(homedir() + '/Library/Application Support/Igor Browser/token', 'utf8')).trim();
+const token = (await readFile(homedir() + '/Library/Application Support/igor.computer/token', 'utf8')).trim();
 const origin = 'http://127.0.0.1:18420';
 const headers = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 async function rpc(path, args) {
@@ -21,7 +21,7 @@ if (status.mode !== 'agent') {
   await rpc('/take-control', {});
   await rpc('/resume', {});
 }
-const client = new Client({ name: 'igor-browser-live-check', version: '1' });
+const client = new Client({ name: 'igor-computer-live-check', version: '1' });
 await client.connect(new StdioClientTransport({ command: process.execPath, args: ['src/mcp.mjs'] }));
 try {
   const tools = (await client.listTools()).tools;
@@ -38,7 +38,7 @@ try {
     assert.ok(!value.isError, JSON.stringify(value));
     return JSON.stringify(value);
   }
-  await evaluate("() => { window.liveMarker='same-page-survived'; localStorage.setItem('igor-browser-smoke','profile-survived'); document.cookie='igor_browser_smoke=profile-survived; Max-Age=3600; SameSite=Lax'; return document.title; }");
+  await evaluate("() => { window.liveMarker='same-page-survived'; localStorage.setItem('igor-computer-smoke','profile-survived'); document.cookie='igor_computer_smoke=profile-survived; Max-Age=3600; SameSite=Lax'; return document.title; }");
   const handoff = await client.callTool({ name: 'browser_request_human', arguments: { pageId, message: 'Try typing in the browser verification page.' } });
   assert.ok(!handoff.isError, JSON.stringify(handoff));
   const requestId = JSON.parse(handoff.content[0].text).request.id;

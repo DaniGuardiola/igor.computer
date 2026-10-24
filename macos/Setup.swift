@@ -36,7 +36,7 @@ extension AppDelegate {
     }
 
     func writeAppStatus() {
-        let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Igor Browser")
+        let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/igor.computer")
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let data = try JSONSerialization.data(withJSONObject: [
@@ -269,7 +269,7 @@ extension AppDelegate {
     }
     @objc func openApplications() { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications")) }
     @objc func openLog() {
-        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor VM/server.log"))
+        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/igor.computer/server.log"))
     }
     @objc func retryRuntime() {
         guard worker?.isRunning != true || mode != "starting" else { return }
@@ -284,7 +284,7 @@ extension AppDelegate {
             process.executableURL = URL(fileURLWithPath: brew)
             process.arguments = ["install", "lima", "qemu", "docker"]
             process.environment = ProcessInfo.processInfo.environment.merging(["PATH": "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin", "HOMEBREW_NO_AUTO_UPDATE": "1"]) { _, new in new }
-            let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Igor VM")
+            let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/igor.computer")
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let log = directory.appendingPathComponent("server.log")
             if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
@@ -297,7 +297,7 @@ extension AppDelegate {
                     self?.startService(); self?.refreshSetup()
                 }
             }
-            do { try process.run(); worker = process; mode = "starting"; startupError = "installing the browser runtime…" }
+            do { try process.run(); worker = process; mode = "starting"; startupError = "installing the computer runtime…" }
             catch { startupError = error.localizedDescription }
         } else {
             worker?.terminationHandler = nil; worker?.terminate(); worker = nil; startupError = nil; runtimeIssues = []; startupStarted = nil

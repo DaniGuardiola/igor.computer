@@ -12,7 +12,7 @@ for name in ('Dockerfile', 'supervisor.py', 'windows.py', 'computer.py', 'seccom
 print(hash.hexdigest())
 PYHASH
 )
-current=$(docker image inspect --format '{{index .Config.Labels "ai.igor.browser.runtime-revision"}}' "$image" 2>/dev/null || true)
+current=$(docker image inspect --format '{{index .Config.Labels "ai.igor.computer.runtime-revision"}}' "$image" 2>/dev/null || true)
 if [ "$current" != "$revision" ]; then
   docker build --build-arg "IGOR_RUNTIME_REVISION=$revision" -t "$image" container
 fi

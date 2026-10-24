@@ -2,11 +2,11 @@
 set -euo pipefail
 source_dir=$(cd "$(dirname "$0")/.." && pwd)
 if [ "$(uname -s)" = Darwin ]; then
-  server_dir="$HOME/Library/Application Support/Igor VM/server"
-  log_dir="$HOME/Library/Logs/Igor VM"
+  server_dir="$HOME/Library/Application Support/igor.computer/server"
+  log_dir="$HOME/Library/Logs/igor.computer"
 else
-  server_dir="${XDG_DATA_HOME:-$HOME/.local/share}/igor-vm/server"
-  log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/igor-vm"
+  server_dir="${XDG_DATA_HOME:-$HOME/.local/share}/igor-computer/server"
+  log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/igor-computer"
 fi
 mkdir -p "$server_dir" "$log_dir"
 revision=$(python3 - "$source_dir" <<'HASH'
@@ -61,9 +61,9 @@ CHECK
   fi
   # Installer updates the independent server bundle, never the guest's data.
   if [ "$(uname -s)" = Darwin ]; then
-    launchctl bootout "gui/$(id -u)/ai.igor.vm.server" 2>/dev/null || true
+    launchctl bootout "gui/$(id -u)/ai.igor.computer.server" 2>/dev/null || true
   else
-    systemctl --user stop igor-vm.service 2>/dev/null || true
+    systemctl --user stop igor-computer.service 2>/dev/null || true
   fi
   if [ "$source_dir" != "$server_dir" ]; then
   for directory in src scripts container vm node_modules; do
@@ -81,23 +81,23 @@ CHECK
   printf '%s\n' "$version" > "$server_dir/server-version.json"
 fi
 if [ "$(uname -s)" = Darwin ]; then
-  plist="$HOME/Library/LaunchAgents/ai.igor.vm.server.plist"
+  plist="$HOME/Library/LaunchAgents/ai.igor.computer.server.plist"
   mkdir -p "$(dirname "$plist")"
   python3 - "$plist" "$server_dir" "$log_dir" <<'PY'
 import plistlib, sys
 path, root, logs = sys.argv[1:]
 with open(path, 'wb') as file:
-    plistlib.dump(dict(Label='ai.igor.vm.server', ProgramArguments=['/bin/bash',root+'/scripts/run-service.sh'],
+    plistlib.dump(dict(Label='ai.igor.computer.server', ProgramArguments=['/bin/bash',root+'/scripts/run-service.sh'],
         RunAtLoad=True, KeepAlive=True, ThrottleInterval=10,
         StandardOutPath=logs+'/server.log', StandardErrorPath=logs+'/server.log',
         EnvironmentVariables=dict(PATH=root+'/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin')), file)
 PY
-  if ! launchctl print "gui/$(id -u)/ai.igor.vm.server" >/dev/null 2>&1; then
+  if ! launchctl print "gui/$(id -u)/ai.igor.computer.server" >/dev/null 2>&1; then
     launchctl bootstrap "gui/$(id -u)" "$plist"
   fi
 else
   mkdir -p "$HOME/.config/systemd/user"
-  python3 - "$HOME/.config/systemd/user/igor-vm.service" "$server_dir" <<'PY'
+  python3 - "$HOME/.config/systemd/user/igor-computer.service" "$server_dir" <<'PY'
 import sys
 from pathlib import Path
 path, root = sys.argv[1:]
@@ -105,6 +105,6 @@ if any(c in root for c in '\n\r%"'): raise SystemExit('Unsupported install path.
 Path(path).write_text('[Unit]\nDescription=igor.computer server\nAfter=network-online.target\n\n[Service]\nExecStart=/bin/bash "'+root+'/scripts/run-service.sh"\nEnvironment="PATH='+root+'/bin:/usr/local/bin:/usr/bin:/bin"\nRestart=on-failure\nRestartSec=10\n\n[Install]\nWantedBy=default.target\n')
 PY
   systemctl --user daemon-reload
-  systemctl --user enable --now igor-vm.service
+  systemctl --user enable --now igor-computer.service
 fi
 printf 'igor.computer server installed. Viewer can quit independently.\n'

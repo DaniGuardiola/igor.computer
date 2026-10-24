@@ -26,7 +26,7 @@ const initial = (await rpc('/status')).value;
 assert.equal(initial.mode, 'agent'); assert.equal(initial.busy, false); assert.equal(initial.runtime.activeTurns, 0);
 const turnId = 'restart-verification';
 await call('computer_begin_turn', { turnId });
-await exec('launchctl', ['kickstart', '-k', `gui/${process.getuid()}/ai.igor.vm.server`]);
+await exec('launchctl', ['kickstart', '-k', `gui/${process.getuid()}/ai.igor.computer.server`]);
 const leased = await ready();
 assert.ok(leased.runtime.turnIds.includes(turnId));
 assert.equal((await call('computer_sleep', {}, true)).code, 409);
@@ -35,7 +35,7 @@ const pending = call('computer_exec', { command: 'sleep 20; printf verification-
 for (let i = 0; i < 100; i++) { if ((await rpc('/status')).value.busy) break; await delay(50); }
 // Wait until the guest command itself has launched, beyond the host busy flag.
 await delay(500);
-await exec('launchctl', ['kickstart', '-k', `gui/${process.getuid()}/ai.igor.vm.server`]);
+await exec('launchctl', ['kickstart', '-k', `gui/${process.getuid()}/ai.igor.computer.server`]);
 const interrupted = await ready();
 assert.equal(interrupted.mode, 'paused'); assert.equal(interrupted.automationPaused, true);
 const takeover = await rpc('/take-control', {}, true);

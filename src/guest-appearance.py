@@ -28,7 +28,7 @@ def wallpaper(dark, width=1440, height=1000):
 
 def apply(dark):
     home = Path.home()
-    state = home / '.config/igor-vm'
+    state = home / '.config/igor-computer'
     state.mkdir(parents=True, exist_ok=True)
     theme = 'Adwaita-dark' if dark else 'Adwaita'
     for version in ('3.0', '4.0'):

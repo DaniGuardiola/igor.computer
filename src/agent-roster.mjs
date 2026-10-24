@@ -2,7 +2,7 @@
 // Retired windows move to the personal desktop; never close tabs or reset logins.
 export const rosterScript = String.raw`
 import json,sys
-sys.path.insert(0,'/opt/igor-browser')
+sys.path.insert(0,'/opt/igor-computer')
 from computer import STATE,workspace
 from windows import windows,run
 args=json.loads(sys.argv[1])

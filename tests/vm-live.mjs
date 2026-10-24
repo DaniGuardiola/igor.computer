@@ -41,7 +41,7 @@ try {
   const page = await tool(stdio, 'new_page', { url: pageUrl, background: false });
   pageId = Number(page.content.find(c => c.type === 'text').text.match(/(\d+):.*\[selected\]/)?.[1]);
   assert.ok(pageId);
-  await tool(stdio, 'evaluate_script', { pageId, function: "() => { document.querySelector('#human-input').value='unsaved-snapshot'; window.vmMarker='ram-survived'; document.cookie='igor_vm_live=shared-profile; Max-Age=3600; SameSite=Lax'; return true; }" });
+  await tool(stdio, 'evaluate_script', { pageId, function: "() => { document.querySelector('#human-input').value='unsaved-snapshot'; window.vmMarker='ram-survived'; document.cookie='igor_computer_live=shared-profile; Max-Age=3600; SameSite=Lax'; return true; }" });
   const workspace = data(await tool(remote, 'computer_workspace', { action: 'create', name: 'verification' }));
   assert.ok(workspace.workspaces.some(w => w.name === 'verification'));
   const before = new Set(workspace.windows.map(w => w.id));
@@ -52,7 +52,7 @@ try {
   const shot = await tool(remote, 'computer_screenshot');
   assert.equal(shot.content[0].type, 'image');
   const bytes = Buffer.from(shot.content[0].data, 'base64'); assert.equal(bytes.subarray(1, 4).toString(), 'PNG');
-  await writeFile('/tmp/igor-vm-live-desktop.png', bytes);
+  await writeFile('/tmp/igor-computer-live-desktop.png', bytes);
   // Pixel input and shared cookie check target the test window only.
   await tool(remote, 'computer_input', { kind: 'key', key: 'ctrl+l' });
   await tool(remote, 'computer_input', { kind: 'key', key: 'Escape' });
