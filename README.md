@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick start</a> ·
+  <a href="#install">Install</a> ·
   <a href="#make-your-own-computer">Make your own</a> ·
   <a href="docs/architecture.md">How it works</a> ·
   <a href="#documentation">Docs</a>
@@ -43,8 +43,8 @@ Agents get much more useful with a computer of their own. The usual options each
 
 On your own machine, one bad instruction or prompt injection can reach your whole
 session. Hosted computers like OpenAI Dots or Grok Bot ([comparison](docs/agent-computers.md))
-keep your logins on someone else's servers. igor.computer runs each computer in
-its own VM, with only the logins you give it.
+keep your logins on someone else's servers. igor.computer gives you the same kind
+of sandboxed agent computer, but on your own Mac or server.
 
 ## What you get
 
@@ -55,7 +55,7 @@ its own VM, with only the logins you give it.
   </tr>
   <tr>
     <td>🌐 <b>A browser with real logins</b></td>
-    <td>Agents drive it through Chrome DevTools and stay signed in. Chromium ships in the base image and is optional.</td>
+    <td>Agents drive it and stay signed in to the sites you log in to. The base image ships Chromium, and the browser is optional.</td>
   </tr>
   <tr>
     <td>💾 <b>It remembers</b></td>
@@ -83,22 +83,19 @@ its own VM, with only the logins you give it.
 >
 > "Keep the API server running and check its logs tomorrow."
 
-## Quick start
+## Install
 
-You need an Apple Silicon Mac with macOS 13+, [Homebrew](https://brew.sh) and
-Xcode command-line tools. There are no signed releases yet, so build from source:
+You need an Apple Silicon Mac with macOS 13 or later.
 
-```sh
-brew install lima qemu docker docker-buildx
-git clone https://github.com/DaniGuardiola/igor.computer && cd igor.computer
-npm ci && npm run build:mac
-bash scripts/install-mac.sh --replace --enable-login
-```
+> 🚧 **Downloads are coming.** Signed releases with auto-updates are set up, but
+> none is published yet. For now, [build and run from source](docs/development.md#build-and-run-from-source).
 
-This installs the **igor.computer** menu-bar app and a background server. The
-first start builds the computer, which takes a few minutes.
+The app installs a background server. The first start builds your computer,
+which takes a few minutes.
 
-Then connect your agent. For Claude Code:
+## Connect your agent
+
+For Claude Code:
 
 ```sh
 claude mcp add --env IGOR_COMPUTER_WORKSPACE=claude-code igor-computer -- "$HOME/Library/Application Support/igor.computer/server/bin/igor-computer" mcp
@@ -132,9 +129,9 @@ The default computer is a clean Debian desktop with a shell, Python, Git and
 Chromium. Build one with your team's tools, repos and services:
 
 ```sh
-igor-computer init ~/code/acme          # writes .igor-computer/devcontainer.json
-igor-computer create acme ~/code/acme   # a folder or a git URL
-igor-computer mcp acme                  # point an agent at it
+igor-computer init ~/my-computer                 # writes .igor-computer/devcontainer.json
+igor-computer create my-computer ~/my-computer   # a folder or a git URL
+igor-computer mcp my-computer                    # point an agent at it
 ```
 
 <details>
@@ -142,14 +139,14 @@ igor-computer mcp acme                  # point an agent at it
 
 ```jsonc
 {
-  "name": "acme",
+  "name": "my-computer",
   "postCreateCommand": "cd /workspace/web && npm install",
   "customizations": {
     "igor.computer": {
       "packages": ["nodejs", "npm", "ripgrep"],
-      "repos": ["https://github.com/acme/web", "https://github.com/acme/api"],
+      "repos": ["https://github.com/you/web", "https://github.com/you/api"],
       "mcp": { "files": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"] } },
-      "secrets": { "GITHUB_TOKEN": "keychain:acme-github" },
+      "secrets": { "GITHUB_TOKEN": "keychain:my-github" },
       "resources": { "cpus": 4, "memory": "8GiB" }
     }
   }

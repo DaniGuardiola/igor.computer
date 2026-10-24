@@ -18,13 +18,21 @@
 | `macos/` | The menu-bar app (Swift). |
 | `scripts/` | Build, install and VM scripts. |
 
-## Build
+## Build and run from source
+
+You need an Apple Silicon Mac with macOS 13 or later, [Homebrew](https://brew.sh)
+and Xcode command-line tools.
 
 ```sh
+brew install lima qemu docker docker-buildx
+git clone https://github.com/DaniGuardiola/igor.computer && cd igor.computer
 npm ci
 npm run build:mac                                     # build/igor.computer.app
 bash scripts/install-mac.sh --replace --enable-login  # install it and the server
 ```
+
+This installs the **igor.computer** menu-bar app and a background server. The
+first start builds the computer, which takes a few minutes.
 
 The app bundles Node, the server and its dependencies, so the installed copy
 doesn't need the checkout. To work on the server alone, run `npm start`. Give
