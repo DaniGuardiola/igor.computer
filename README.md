@@ -2,17 +2,13 @@
 
 **A real computer for your AI agents, running on your own machine.**
 
-igor.computer gives any AI agent a full Linux computer of its own: a desktop,
-a shell, a filesystem, apps and a real browser. The agent can run commands,
-install tools, clone repos and edit files. It can use desktop apps, start
-long-running services and browse the web logged in to your sites. The computer
-remembers all of it. When the agent gets stuck on a login, a CAPTCHA or a
-judgment call, it asks you, and you take the mouse, fix it and hand it back.
+igor.computer gives any AI agent a full Linux computer of its own:
 
-It works with any agent that speaks [MCP](https://modelcontextprotocol.io):
-Claude Code, Codex, Cursor, your own agents. Each computer is described in a
-`devcontainer.json`, the same file developers already use to describe dev
-environments.
+- **Everything a computer has.** A desktop, a shell, files, apps and a real browser.
+- **It remembers.** Files, tools, running services and logins are still there next time.
+- **You can step in.** When the agent needs a login, a CAPTCHA or a decision, it asks you. You take the mouse, sort it out and hand it back.
+- **Any agent.** It works with anything that speaks [MCP](https://modelcontextprotocol.io): Claude Code, Codex, Cursor, your own agents.
+- **Described in one file.** Each computer is a `devcontainer.json`, the format developers already use for dev environments.
 
 ## Why
 
