@@ -21,13 +21,13 @@ and you can watch or take over at any time.
 flowchart LR
   A["🤖 Your agents<br/>(any MCP client)"] -->|MCP| S
   Y["🧑 You<br/>(Mac app or browser)"] -->|watch, take control| S
-  S["igor.computer server<br/>auth · ownership · sleep"] --> V1
+  S["igor.computer<br/>on your Mac or server"] --> V1
   S --> V2
-  subgraph V1["VM: default"]
-    C1["Desktop · shell · files<br/>apps · browser"]
+  subgraph V1["🔒 Personal computer (own VM)"]
+    C1["Desktop, shell, files, browser<br/>with your assistant's logins"]
   end
-  subgraph V2["VM: acme"]
-    C2["Same, plus team repos,<br/>tools and services"]
+  subgraph V2["🔒 Team project computer (own VM)"]
+    C2["Same, plus the project's<br/>repos, tools and services"]
   end
 ```
 
@@ -91,6 +91,12 @@ claude mcp add --env IGOR_COMPUTER_WORKSPACE=claude-code igor-computer -- "$HOME
 `IGOR_COMPUTER_WORKSPACE` gives the agent its own desktop, so it doesn't get in
 your way. Choose **open computer** in the menu bar to watch it work.
 
+No agent at hand? The built-in one runs on an Anthropic, OpenAI or OpenRouter key:
+
+```sh
+igor-computer run "clone https://github.com/octocat/Hello-World and tell me its last commit"
+```
+
 <details>
 <summary>Other MCP clients</summary>
 
@@ -150,7 +156,7 @@ igor.computer is a thin layer over existing tools, and you can swap out any part
 
 | Layer | What it does | Built on |
 | --- | --- | --- |
-| **Hardware** | Runs each computer as a VM, sleeps and wakes it, serves agents and viewers, decides who controls the desktop. | [Lima](https://lima-vm.io), [QEMU](https://www.qemu.org), [MCP](https://modelcontextprotocol.io), [noVNC](https://novnc.com) |
+| **Hardware** | Runs each computer as a VM, sleeps and wakes it, serves agents and viewers, decides who controls the desktop. | [Lima](https://lima-vm.io), [QEMU](https://www.qemu.org), [MCP](https://modelcontextprotocol.io) via [TanStack AI](docs/tanstack.md), [noVNC](https://novnc.com) |
 | **OS** | Any container image that meets a small [OS contract](docs/computers.md#the-os-contract). The base image is Debian with a desktop, a shell, Python, Git and Chromium. | Docker / OCI, [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) |
 | **Definition** | Your computer's packages, repos, services, MCP servers, mounts and secrets. | [devcontainer.json](https://containers.dev) |
 
@@ -170,6 +176,7 @@ but it doesn't depend on Igor.
 - [Computers](docs/computers.md): definitions, the OS contract, the CLI
 - [How it works](docs/architecture.md): tools, human control, sleep, security
 - [Running a server](docs/server.md): remote access, Linux, configuration
+- [TanStack AI](docs/tanstack.md): the built-in agent, and computer use in your own apps
 - [Development](docs/development.md): building, testing, distribution
 - [Using with Igor](docs/igor.md)
 - [Agent skill](skills/igor-computer/SKILL.md): instructions to give your agent
