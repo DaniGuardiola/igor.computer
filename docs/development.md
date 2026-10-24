@@ -87,6 +87,9 @@ GitHub Actions, the same flow as extend.computer's:
    `releases/latest/download/` link. Then it publishes the signed
    [Sparkle](https://sparkle-project.org) feed.
 
+Within an hour, [the tap](https://github.com/DaniGuardiola/homebrew-tap) moves
+the Homebrew cask to a new stable release on its own.
+
 Don't edit the version by hand. A published release is never replaced: to fix
 one, release a new version. If only the feed step failed, re-run the workflow;
 it reuses the published DMG. `CFBundleVersion` is the workflow's run number,
