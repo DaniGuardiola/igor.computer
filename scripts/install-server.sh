@@ -43,7 +43,7 @@ if [ ! -f "$server_dir/src/service.mjs" ] || [ "$previous" != "$revision" ] || [
   if [ -f "$server_dir/src/service.mjs" ]; then
     checker="$source_dir/bin/node"
     [ -x "$checker" ] || checker=$(command -v node)
-    "$checker" --input-type=module - "$source_dir" <<'CHECK'
+    if ! "$checker" --input-type=module - "$source_dir" <<'CHECK'
 import {pathToFileURL} from 'node:url';
 import {readFile} from 'node:fs/promises';
 const {stateDir,port,origin}=await import(pathToFileURL(process.argv[2]+'/src/config.mjs'));
@@ -59,7 +59,15 @@ if(response){
   if(busy) throw new Error(`Computer ${busy.name} is in use. Finish its turn or human takeover before updating the server.`);
 }
 CHECK
+    then
+      # An app update must not fail startup: keep the running server and retry on the next launch.
+      [ "${1:-}" = --ensure ] || exit 1
+      printf 'Server update deferred until the next app launch.\n' >&2
+      deferred=1
+    fi
   fi
+fi
+if [ -z "${deferred:-}" ] && { [ ! -f "$server_dir/src/service.mjs" ] || [ "$previous" != "$revision" ] || [ "${1:-}" = --replace ]; }; then
   # Installer updates the independent server bundle, never the guest's data.
   if [ "$(uname -s)" = Darwin ]; then
     launchctl bootout "gui/$(id -u)/ai.igor.computer.server" 2>/dev/null || true

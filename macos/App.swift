@@ -100,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var attentionRequest: String?
     var pollRunning = false
     var updater: SPUStandardUpdaterController?
+    var updateGate: UpdateGate?
     var loginReady: Bool {
         SMAppService.mainApp.status == .enabled || UserDefaults.standard.bool(forKey: "startAtLoginDisabledByUser")
     }
@@ -132,7 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
         if Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") is String,
            Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") is String {
-            updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+            updateGate = UpdateGate(app: self)
+            updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: updateGate, userDriverDelegate: nil)
         }
         refreshSetup()
         updateMenu()

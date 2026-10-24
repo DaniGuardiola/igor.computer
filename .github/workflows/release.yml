@@ -1,0 +1,80 @@
+name: Release macOS app
+# Push a vX.Y.Z tag matching package.json (npm version patch && git push --follow-tags).
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_REPOSITORY: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_BUILD: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the tag
+        run: |
+          python3 scripts/release.py check --tag "$RELEASE_TAG"
+          if gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" >/dev/null 2>&1; then
+            echo "$RELEASE_TAG is already released. Published releases are immutable: tag a new version." >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - name: Install dependencies and test
+        run: |
+          npm ci
+          npm test
+          npm run test:mac
+      - name: Build, sign and notarize
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
+          UPDATE_FEED: ${{ vars.UPDATE_FEED }}
+        run: bash scripts/release-mac.sh
+      - name: Keep notarization receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: notarization-${{ github.run_id }}
+          path: release-output/*notarization*.json*
+          if-no-files-found: ignore
+      - name: Sign the update feed
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
+        run: |
+          # Start from the latest release's feed so older entries are kept.
+          gh release download --repo "$RELEASE_REPOSITORY" --pattern appcast.xml --dir release-output 2>/dev/null || true
+          version=$(node -p "require('./package.json').version")
+          python3 scripts/release.py appcast --tag "$RELEASE_TAG" --build "$RELEASE_BUILD" --archive "release-output/igor.computer-$version-arm64.dmg"
+          python3 scripts/release.py notes --tag "$RELEASE_TAG" > release-output/notes.md
+      - name: Publish the release
+        run: |
+          # The feed ships in the same release as its DMG, so it never points at a missing download.
+          # A fixed-name copy gives a permanent releases/latest/download link.
+          version=$(node -p "require('./package.json').version")
+          cp "release-output/igor.computer-$version-arm64.dmg" release-output/igor.computer-arm64.dmg
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --latest \
+            --title "igor.computer $version" --notes-file release-output/notes.md \
+            "release-output/igor.computer-$version-arm64.dmg" release-output/igor.computer-arm64.dmg \
+            release-output/appcast.xml release-output/SHA256SUMS
