@@ -23,7 +23,7 @@ can use it, and it's built from open standards you can change.
 ## What you get
 
 - **A full Linux computer.** A shell for commands, a persistent `/workspace` for files, desktop apps the agent operates through their accessibility controls or with mouse and keyboard, and any tools you install.
-- **A browser with real logins.** Agents drive Chromium through Chrome DevTools to navigate, read and fill pages, and stay signed in to the sites you've logged in to.
+- **A browser with real logins.** Agents drive the browser through Chrome DevTools to navigate, read and fill pages, and stay signed in to the sites you've logged in to. The base image ships Chromium; turn it off, or bring any Chrome DevTools browser in your own image.
 - **A computer that remembers.** Files, installed tools, logins and open windows survive restarts. An idle computer sleeps with its memory saved, and wakes in about five seconds exactly as it was, running programs and unsaved text included.
 - **You stay in charge.** Watch any agent live. Take control at any time. Agents ask for help when they need you, and you type the passwords. One switch pauses all automation.
 - **Many computers.** Keep a personal computer for your assistant, one per team or project, or one per agent. Each runs in its own VM with its own logins.
