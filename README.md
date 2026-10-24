@@ -178,7 +178,7 @@ Early, and used daily by its author.
 
 - ✅ macOS on Apple Silicon is the tested setup.
 - 🚧 Linux hosts are implemented but not yet validated on real hardware.
-- 🚧 No signed releases or auto-updates yet.
+- 🚧 Signed releases with auto-updates are set up but none is published yet.
 
 It started as the computer for [Igor](docs/igor.md), a personal AI assistant,
 but it doesn't depend on Igor.

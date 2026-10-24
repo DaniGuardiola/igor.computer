@@ -4,10 +4,8 @@ The app bundles Node, its MCP dependencies, and the browser image recipe. It doe
 
 Build a development DMG with `npm run build:mac` then `bash scripts/package-dmg.sh`. These local builds are ad-hoc signed, not public releases.
 
-Sparkle 2.10.0 is pinned with its GitHub release SHA-256 and embedded in the app. To enable automatic updates, set `IGOR_UPDATE_FEED` (HTTPS appcast URL), `IGOR_UPDATE_PUBLIC_KEY` (Sparkle Ed25519 public key), and an increasing `IGOR_BUILD_NUMBER` when building. Without an actual feed and key, development builds do not check for updates or show a nonfunctional update menu.
+Signed, notarized releases and their Sparkle feed are built by GitHub Actions on a version tag: see [Releases](../docs/development.md#releases). Sparkle 2.10.0 is pinned with its GitHub release SHA-256 and embedded in the app. A build only checks for updates when `IGOR_UPDATE_FEED` and `IGOR_UPDATE_PUBLIC_KEY` are both set, which the release script does. The DMG can be used by both Sparkle and Homebrew.
 
-Before distribution: use Developer ID signing for the app, bundled Node, and Sparkle's nested executables and services; notarize and staple the app/DMG; generate the Ed25519 key with Sparkle's `generate_keys` (private key stays in Keychain); generate a signed appcast with `generate_appcast`; test an actual old-to-new installation. See https://sparkle-project.org/documentation/ for nested signing and appcast requirements. The DMG can be used by both Sparkle and Homebrew.
-
-Render `igor-computer.rb.in` with the actual version, release artifact SHA-256, and download URL into a Homebrew tap. Use `auto_updates true` only for builds with a live Sparkle feed. Validate the rendered cask with Homebrew before publishing. The current repository and releases remain private; public appcast/download URLs are not configured. A private authenticated update host would need an explicit separate design.
+Render `igor-computer.rb.in` with the actual version, release artifact SHA-256, and download URL into a Homebrew tap. Use `auto_updates true` only for builds with a live Sparkle feed. Validate the rendered cask with Homebrew before publishing. The release's `SHA256SUMS` has the hash; `releases/latest/download/igor.computer-arm64.dmg` is a stable download URL, but a cask should pin the versioned one.
 
 No installer or uninstall step removes `igor-computer-profile`, `igor-computer-home`, or `igor-computer-workspace`: they contain the user's browser session. Removing those volumes must be an explicit user action.
