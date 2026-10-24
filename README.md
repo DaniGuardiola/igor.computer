@@ -2,10 +2,12 @@
 
 **A real computer for your AI agents, running on your own machine.**
 
-igor.computer gives any AI agent its own Linux desktop with a real browser.
-The agent can log in to sites, keep tabs open, install tools and work with files.
-The desktop remembers all of it. When the agent gets stuck on a login, a CAPTCHA
-or a judgment call, it asks you, and you take the mouse, fix it and hand it back.
+igor.computer gives any AI agent a full Linux computer of its own: a desktop,
+a shell, a filesystem, apps and a real browser. The agent can run commands,
+install tools, clone repos and edit files. It can use desktop apps, start
+long-running services and browse the web logged in to your sites. The computer
+remembers all of it. When the agent gets stuck on a login, a CAPTCHA or a
+judgment call, it asks you, and you take the mouse, fix it and hand it back.
 
 It works with any agent that speaks [MCP](https://modelcontextprotocol.io):
 Claude Code, Codex, Cursor, your own agents. Each computer is described in a
@@ -16,8 +18,8 @@ environments.
 
 Agents get much more useful once they have a computer of their own, but the usual options are poor:
 
-- **A headless browser** forgets every login, can't show a person what it's doing, and many sites block it.
-- **Your own browser** gives the agent your whole personal session, and you can't keep working while it does.
+- **Your own machine** gives the agent your whole personal session, files and accounts, and you can't keep working while it does.
+- **A throwaway sandbox or headless browser** forgets everything between tasks, can't show a person what it's doing, and many sites block it.
 - **Hosted agent computers** like OpenAI Dots or Grok Bot ([comparison](docs/agent-computers.md)) are tied to one vendor's agent and run in their cloud.
 
 igor.computer is that kind of agent computer, but it runs on your Mac or your
@@ -26,12 +28,22 @@ change.
 
 ## What you get
 
-- **A desktop that remembers.** Logins, tabs, files and installed tools survive restarts. An idle computer sleeps with its memory saved, and wakes in about five seconds exactly as it was, unsaved form text included.
-- **A real browser the agent drives directly.** Agents use Chrome DevTools to navigate, read and fill pages, without clicking pixels. Desktop apps work through accessibility tools.
+- **A full Linux computer.** A shell for commands, a persistent `/workspace` for files, desktop apps the agent operates through their accessibility controls or with mouse and keyboard, and any tools you install.
+- **A browser with real logins.** Agents drive Chromium through Chrome DevTools to navigate, read and fill pages, and stay signed in to the sites you've logged in to.
+- **A computer that remembers.** Files, installed tools, logins and open windows survive restarts. An idle computer sleeps with its memory saved, and wakes in about five seconds exactly as it was, running programs and unsaved text included.
 - **You stay in charge.** Watch any agent live. Take control at any time. Agents ask for help and wait, and you type the passwords. One switch pauses all automation.
 - **Many computers.** Keep a personal computer for your assistant, one per team or project, or one per agent. Each runs in its own VM with its own logins.
 - **Defined in a file.** Add tools, clone repos, run MCP servers and services, and mount folders in a `devcontainer.json` you can keep in git and share with your team.
 - **Yours.** Everything runs on your hardware. Nothing goes through a hosted service.
+
+## What agents do with it
+
+- **Build and run code.** Clone a repo, install dependencies, run the tests, start a dev server and check the result in the browser, all in one place.
+- **Do long-running work.** Keep services, watchers and background jobs running between tasks; the computer is still there tomorrow.
+- **Use real apps.** Operate desktop applications through their accessibility controls, or with mouse and keyboard when there's nothing better.
+- **Handle files.** Download, convert, generate and organize files in a `/workspace` that persists.
+- **Work on the web as you.** Use sites you've logged in to once, fill in forms, and hand over to you for passwords, payments and CAPTCHAs.
+- **Be your assistant's home.** Give a personal assistant one long-lived computer, with separate desktops for each of its agents.
 
 ## Quick start
 
@@ -72,12 +84,14 @@ Other MCP clients take the same command in their config:
 }
 ```
 
-Ask your agent to open a website. Choose **open computer** in the menu bar to
-watch it work.
+Ask your agent to do something on its computer, like "clone this repo and run
+its tests" or "find this week's invoices on the supplier site and save them as
+PDFs". Choose **open computer** in the menu bar to watch it work.
 
 ## Make your own computer
 
-The default computer is a clean Debian desktop with Chromium. To build one with your team's tools:
+The default computer is a clean Debian desktop with a shell, Python, Git and
+Chromium. To build one with your team's tools, repos and services:
 
 ```sh
 igor-computer init ~/code/acme          # writes .igor-computer/devcontainer.json
@@ -114,10 +128,10 @@ flowchart LR
   S["igor.computer server<br/>auth · ownership · sleep"] --> V1
   S --> V2
   subgraph V1["VM: default"]
-    C1["Desktop + Chromium<br/>+ your tools"]
+    C1["Desktop · shell · files<br/>apps · browser"]
   end
   subgraph V2["VM: acme"]
-    C2["Desktop + Chromium<br/>+ team repos and tools"]
+    C2["Same, plus team repos,<br/>tools and services"]
   end
 ```
 
@@ -126,8 +140,8 @@ igor.computer is a thin layer over existing tools, and you can swap out any part
 | Layer | What it does | Built on |
 | --- | --- | --- |
 | **Hardware** | Runs each computer as a VM, sleeps and wakes it, serves agents and viewers, and decides who controls the desktop. | [Lima](https://lima-vm.io), [QEMU](https://www.qemu.org), [MCP](https://modelcontextprotocol.io), [noVNC](https://novnc.com) |
-| **OS** | The desktop inside: any container image that meets a small [OS contract](docs/computers.md#the-os-contract). The base image is Debian with Xvfb, Openbox and Chromium. | Docker / OCI, [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) |
-| **Definition** | Your computer's tools, repos, services and secrets. | [devcontainer.json](https://containers.dev) |
+| **OS** | Everything inside: any container image that meets a small [OS contract](docs/computers.md#the-os-contract) for control, display, browsers and tools. The base image is Debian with a desktop (Xvfb, Openbox), a shell, Python, Git and Chromium. | Docker / OCI, [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) |
+| **Definition** | Your computer's packages, repos, services, MCP servers, mounts and secrets. | [devcontainer.json](https://containers.dev) |
 
 More detail is in [How it works](docs/architecture.md).
 
