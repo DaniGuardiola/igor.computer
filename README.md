@@ -48,12 +48,32 @@ its own VM, with only the logins you give it.
 
 ## What you get
 
-- 🖥️ **A full Linux computer.** Shell, persistent `/workspace`, desktop apps and any tools you install.
-- 🌐 **A browser with real logins.** Agents drive it through Chrome DevTools and stay signed in. Chromium ships in the base image and is optional.
-- 💾 **It remembers.** Files, tools, logins and open windows survive restarts. Idle computers sleep and wake in ~5 s exactly as they were.
-- 🙋 **You stay in charge.** Watch live, take control any time, type the passwords yourself. One switch pauses all automation.
-- 🗂️ **Many computers.** One for your assistant, one per team or project, or one per agent, each in its own VM.
-- 📄 **Defined in a file.** Tools, repos, services, MCP servers and mounts in a `devcontainer.json` you keep in git.
+<table>
+  <tr>
+    <td>🖥️ <b>A full Linux computer</b></td>
+    <td>Shell, persistent <code>/workspace</code>, desktop apps and any tools you install.</td>
+  </tr>
+  <tr>
+    <td>🌐 <b>A browser with real logins</b></td>
+    <td>Agents drive it through Chrome DevTools and stay signed in. Chromium ships in the base image and is optional.</td>
+  </tr>
+  <tr>
+    <td>💾 <b>It remembers</b></td>
+    <td>Files, tools, logins and open windows survive restarts. Idle computers sleep and wake in ~5 s exactly as they were.</td>
+  </tr>
+  <tr>
+    <td>🙋 <b>You stay in charge</b></td>
+    <td>Watch live, take control any time, type the passwords yourself. One switch pauses all automation.</td>
+  </tr>
+  <tr>
+    <td>🗂️ <b>Many computers</b></td>
+    <td>One for your assistant, one per team or project, or one per agent, each in its own VM.</td>
+  </tr>
+  <tr>
+    <td>📄 <b>Defined in a file</b></td>
+    <td>Tools, repos, services, MCP servers and mounts in a <code>devcontainer.json</code> you keep in git.</td>
+  </tr>
+</table>
 
 **Try asking your agent:**
 
@@ -87,12 +107,6 @@ claude mcp add --env IGOR_COMPUTER_WORKSPACE=claude-code igor-computer -- "$HOME
 `IGOR_COMPUTER_WORKSPACE` gives the agent its own desktop, so it doesn't get in
 your way. Choose **open computer** in the menu bar to watch it work.
 
-No agent at hand? The built-in one runs on an Anthropic, OpenAI or OpenRouter key:
-
-```sh
-igor-computer run "clone https://github.com/octocat/Hello-World and tell me its last commit"
-```
-
 <details>
 <summary>Other MCP clients</summary>
 
@@ -107,6 +121,8 @@ igor-computer run "clone https://github.com/octocat/Hello-World and tell me its 
   }
 }
 ```
+
+Codex needs one more setting; see [Connect your agent](docs/agents.md).
 
 </details>
 
@@ -172,7 +188,8 @@ but it doesn't depend on Igor.
 - [Computers](docs/computers.md): definitions, the OS contract, the CLI
 - [How it works](docs/architecture.md): tools, human control, sleep, security
 - [Running a server](docs/server.md): remote access, Linux, configuration
-- [TanStack AI](docs/tanstack.md): the built-in agent, and computer use in your own apps
+- [Connect your agent](docs/agents.md): Claude Code, Codex, other MCP clients
+- [TanStack AI](docs/tanstack.md): computer use in your own apps
 - [Development](docs/development.md): building, testing, distribution
 - [Using with Igor](docs/igor.md)
 - [Agent skill](skills/igor-computer/SKILL.md): instructions to give your agent
