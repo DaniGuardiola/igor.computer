@@ -20,7 +20,7 @@ and you can watch or take over at any time.
 ```mermaid
 flowchart LR
   A["🤖 Your agents<br/>(any MCP client)"] -->|MCP| S
-  Y["🧑 You<br/>(menu-bar app or web viewer)"] -->|watch, take control| S
+  Y["🧑 You<br/>(Mac app or browser)"] -->|watch, take control| S
   S["igor.computer server<br/>auth · ownership · sleep"] --> V1
   S --> V2
   subgraph V1["VM: default"]
