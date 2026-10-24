@@ -21,13 +21,11 @@ and you can watch or take over at any time.
 flowchart LR
   A["🤖 Your agents<br/>(any MCP client)"] -->|MCP| S
   Y["🧑 You<br/>(Mac app or browser)"] -->|watch, take control| S
-  S["igor.computer<br/>on your Mac or server"] --> V1
-  S --> V2
-  subgraph V1["🔒 Personal computer (own VM)"]
-    C1["Desktop, shell, files, browser<br/>with your assistant's logins"]
-  end
-  subgraph V2["🔒 Team project computer (own VM)"]
-    C2["Same, plus the project's<br/>repos, tools and services"]
+  subgraph H["Your Mac or server"]
+    S["igor.computer<br/>(one install)"] --> V1 & V2 & V3
+    V1["🔒 Personal computer · own VM<br/>desktop, shell, files, browser<br/>with your assistant's logins"]
+    V2["🔒 Team project computer · own VM<br/>same, plus the project's<br/>repos, tools and services"]
+    V3["🔒 …as many computers<br/>as you want"]
   end
 ```
 
