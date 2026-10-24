@@ -8,7 +8,16 @@ import net from 'node:net';
 const directory = await mkdtemp(join(tmpdir(), 'igor-computer-test-'));
 process.env.IGOR_COMPUTER_STATE_DIR = directory;
 process.env.IGOR_COMPUTER_LIMA_HOME = directory;
-const { Runtime } = await import('../src/runtime.mjs');
+const { Runtime: BaseRuntime } = await import('../src/runtime.mjs');
+const { defaultManifest } = await import('../src/guest.mjs');
+const { normalizeDefinition } = await import('../src/definition.mjs');
+const context = { name: 'test', dir: directory, vmDir: join(directory, 'vm'), vmName: 'igor-computer-test', env: process.env };
+class Runtime extends BaseRuntime {
+  constructor() {
+    super(context, { manifest: defaultManifest }, { load: async () => ({ definition: normalizeDefinition({}), revision: 'r' }),
+      builder: { manifest: async () => defaultManifest } });
+  }
+}
 const { Control } = await import('../src/control.mjs');
 const { qmp, saveSnapshot, validateSnapshot } = await import('../src/snapshot.mjs');
 test.after(() => rm(directory, { recursive: true, force: true }));

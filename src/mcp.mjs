@@ -4,7 +4,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { stateDir, origin } from './config.mjs';
 import { createMcpServer } from './mcp-server.mjs';
 
-const endpoint = process.env.IGOR_COMPUTER_URL || origin;
+const serverUrl = process.env.IGOR_COMPUTER_URL || origin;
+// IGOR_COMPUTER picks a named computer on the server; the default computer otherwise.
+const computer = process.env.IGOR_COMPUTER || 'default';
+if (!/^[a-z][a-z0-9-]{0,19}$/.test(computer)) throw new Error('Invalid IGOR_COMPUTER name.');
+const endpoint = serverUrl.replace(/\/$/, '') + (computer === 'default' ? '' : '/computers/' + computer);
 if (!['http:', 'https:'].includes(new URL(endpoint).protocol)) throw new Error('Invalid server URL.');
 if (new URL(endpoint).protocol !== 'https:' && !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(endpoint).hostname)) throw new Error('Use HTTPS for remote connections.');
 const token = (await readFile(process.env.IGOR_COMPUTER_TOKEN_FILE || join(stateDir, 'token'), 'utf8')).trim();

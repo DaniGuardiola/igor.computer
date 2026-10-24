@@ -13,9 +13,13 @@ RUN set -eu; case "$(dpkg --print-architecture)" in \
     curl -fL --retry 3 "https://github.com/agent-sh/computer-use-linux/releases/download/v0.7.15/computer-use-linux-$target-unknown-linux-gnu" -o /usr/local/bin/computer-use-linux; \
     echo "$checksum  /usr/local/bin/computer-use-linux" | sha256sum -c -; \
     chmod 755 /usr/local/bin/computer-use-linux
-COPY supervisor.py windows.py computer.py /opt/igor-computer/
+COPY supervisor.py windows.py computer.py setup.py apps.py frame.py roster.py appearance.py /opt/igor-computer/
 ARG IGOR_RUNTIME_REVISION
-LABEL ai.igor.computer.runtime-revision=$IGOR_RUNTIME_REVISION
+# The OS contract: how igor.computer reaches this OS's display, control,
+# browsers and tools. Custom images keep or replace this label.
+LABEL ai.igor.computer.base=1 \
+      ai.igor.computer.os="{\"contract\":1,\"control\":[\"python3\",\"/opt/igor-computer/computer.py\"],\"setup\":[\"python3\",\"/opt/igor-computer/setup.py\"],\"display\":{\"port\":6080,\"auth\":\"/tmp/igor-computer-display-auth\"},\"browsers\":[{\"name\":\"chromium\",\"cdpPort\":9222}],\"desktopTools\":[\"computer-use-linux\",\"mcp\"],\"mcp\":{}}" \
+      ai.igor.computer.runtime-revision=$IGOR_RUNTIME_REVISION
 USER browser
 ENV DISPLAY=:99 DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/igor-session-bus XDG_RUNTIME_DIR=/tmp/igor-runtime XDG_SESSION_TYPE=x11 COMPUTER_USE_LINUX_INDICATOR=0
 EXPOSE 9222 6080

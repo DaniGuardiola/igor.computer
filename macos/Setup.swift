@@ -282,7 +282,7 @@ extension AppDelegate {
             }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: brew)
-            process.arguments = ["install", "lima", "qemu", "docker"]
+            process.arguments = ["install", "lima", "qemu", "docker", "docker-buildx"]
             process.environment = ProcessInfo.processInfo.environment.merging(["PATH": "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin", "HOMEBREW_NO_AUTO_UPDATE": "1"]) { _, new in new }
             let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/igor.computer")
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

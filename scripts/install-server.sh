@@ -50,12 +50,13 @@ const {stateDir,port,origin}=await import(pathToFileURL(process.argv[2]+'/src/co
 let response;
 try {
   const token=(await readFile(stateDir+'/token','utf8')).trim();
-  response=await fetch('http://127.0.0.1:'+port+'/status',{headers:{Authorization:'Bearer '+token,Host:new URL(origin).host},signal:AbortSignal.timeout(3000)});
+  response=await fetch('http://127.0.0.1:'+port+'/computers',{headers:{Authorization:'Bearer '+token,Host:new URL(origin).host},signal:AbortSignal.timeout(3000)});
 } catch(error) { if(error.code!=='ENOENT' && error.cause?.code!=='ECONNREFUSED') throw error; }
 if(response){
   if(!response.ok) throw new Error('Cannot safely inspect server ownership for update.');
-  const status=await response.json();
-  if(status.busy || status.mode==='human' || status.mode==='pending' || status.runtime.activeTurns) throw new Error('Computer is in use. Finish the turn or human takeover before updating the server.');
+  const {computers}=await response.json();
+  const busy=computers.find(item=>item.mode==='human' || item.mode==='pending' || item.activeTurns || ['waking','saving','building'].includes(item.state));
+  if(busy) throw new Error(`Computer ${busy.name} is in use. Finish its turn or human takeover before updating the server.`);
 }
 CHECK
   fi
@@ -76,6 +77,8 @@ CHECK
   else cp "$(command -v node)" "$server_dir/bin/node.new"; fi
   # A fresh inode avoids macOS retaining the previous executable code signature.
   mv -f "$server_dir/bin/node.new" "$server_dir/bin/node"
+  printf '#!/bin/bash\nexec "%s/bin/node" "%s/src/cli.mjs" "$@"\n' "$server_dir" "$server_dir" > "$server_dir/bin/igor-computer"
+  chmod 755 "$server_dir/bin/igor-computer"
   fi
   printf '%s\n' "$revision" > "$server_dir/version.txt"
   printf '%s\n' "$version" > "$server_dir/server-version.json"
@@ -108,3 +111,4 @@ PY
   systemctl --user enable --now igor-computer.service
 fi
 printf 'igor.computer server installed. Viewer can quit independently.\n'
+printf 'CLI: %s/bin/igor-computer (add it to PATH, or symlink it into ~/.local/bin).\n' "$server_dir"

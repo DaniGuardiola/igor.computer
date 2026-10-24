@@ -8,7 +8,7 @@ import { Desktop } from '../src/desktop.mjs';
 test('pins persist and accept only installed app IDs, not commands or paths', async () => {
  const root=await mkdtemp(join(tmpdir(),'igor-desktop-'));
  try {
-  const operations={guest:async()=>({stdout:JSON.stringify({apps:[{id:'chromium.desktop',name:'Chromium'},{id:'editor.desktop',name:'Editor'}]})})};
+  const operations={computer:async()=>({apps:[{id:'chromium.desktop',name:'Chromium'},{id:'editor.desktop',name:'Editor'}]})};
   const desktop=new Desktop(root,operations);
   assert.deepEqual((await desktop.catalog()).pins,['chromium.desktop']);
   await desktop.pin(['editor.desktop','chromium.desktop']);
@@ -35,16 +35,16 @@ test('profile updates preserve stable workspace identity, desktop and windows', 
 test('Chromium launcher reuses browser in currently selected workspace',async()=>{
  const root=await mkdtemp(join(tmpdir(),'igor-launch-'));const calls=[];
  try {
-  const desktop=new Desktop(root,{guest:async()=>({stdout:'{"apps":[{"id":"chromium.desktop"}]}'}),computer:async(action,args)=>{calls.push([action,args]);return {workspaces:[{name:'agent-2',desktop:4,active:true}]}}});
+  const desktop=new Desktop(root,{computer:async(action,args)=>{calls.push([action,args]);return action==='apps'?{apps:[{id:'chromium.desktop'}]}:{workspaces:[{name:'agent-2',desktop:4,active:true}]}}});
   await desktop.launch('chromium.desktop');
-  assert.deepEqual(calls[1],['workspace_open_browser',{name:'agent-2',reuse:true}]);
+  assert.deepEqual(calls[2],['workspace_open_browser',{name:'agent-2',reuse:true}]);
   await assert.rejects(desktop.launch('arbitrary-command'));
  }finally{await rm(root,{recursive:true,force:true})}
 });
 test('agent roster retires only its owned workspaces and validates before guest changes', async () => {
  const root=await mkdtemp(join(tmpdir(),'igor-roster-'));const calls=[];
  try {
-  const desktop=new Desktop(root,{guest:async args=>{calls.push(JSON.parse(args.at(-1)));return {stdout:'{}'}}});
+  const desktop=new Desktop(root,{computer:async(action,args)=>{calls.push(args);return {}}});
   const owner='a'.repeat(64),other='b'.repeat(64);
   await desktop.reconcile(owner,[{id:'agent-1',label:'first',avatar:null},{id:'agent-2',label:'second',avatar:null}]);
   await desktop.reconcile(other,[{id:'agent-2',label:'second',avatar:null}]);

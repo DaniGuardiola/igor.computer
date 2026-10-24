@@ -10,5 +10,6 @@ cask "igor-computer" do
   depends_on formula: "lima"
   depends_on formula: "qemu"
   depends_on formula: "docker"
+  depends_on formula: "docker-buildx"
   app "igor.computer.app"
 end

@@ -3,22 +3,22 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "A persistent agent computer server with headed Chromium, RAM snapshots, desktop tools and human takeover.",
+  "description": "A persistent computer for agents: a VM \"hardware\" layer, a small OS contract, and devcontainer-based definitions.",
   "scripts": {
     "start": "node src/service.mjs",
     "mcp": "node src/mcp.mjs",
     "test": "node --test tests/*.test.mjs",
     "build:mac": "bash scripts/build-mac.sh",
-    "vm:build": "bash scripts/build-browser.sh",
-    "vm:start": "bash scripts/start-browser.sh",
     "package:dmg": "bash scripts/package-dmg.sh",
     "test:mac": "bash scripts/test-mac.sh",
     "server:install": "bash scripts/install-server.sh",
     "vm:boot": "bash scripts/start-vm.sh",
     "test:vm": "node tests/vm-live.mjs",
-    "test:desktop": "node tests/desktop-live.mjs"
+    "test:desktop": "node tests/desktop-live.mjs",
+    "cli": "node src/cli.mjs"
   },
   "dependencies": {
+    "@devcontainers/cli": "0.89.0",
     "@modelcontextprotocol/sdk": "1.31.0",
     "chrome-devtools-mcp": "1.10.1",
     "http-proxy": "1.18.1",
@@ -26,5 +26,8 @@
   },
   "igor": {
     "extension": "./igor.extension.json"
+  },
+  "bin": {
+    "igor-computer": "src/cli.mjs"
   }
 }

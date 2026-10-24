@@ -1,6 +1,3 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { runtimeEnv } from './config.mjs';
 
 // Dedicated desktop backend. Browser tools continue through DevTools MCP.
 export const desktopToolNames = new Set([
@@ -81,14 +78,7 @@ function resultData(result) {
 
 export class ComputerUse {
   clients = new Map();
-  constructor(connect = async workspace => {
-    const client = new Client({ name: 'igor-computer-' + workspace, version: '0.2.0' });
-    await client.connect(new StdioClientTransport({
-      command: 'docker', args: ['exec', '-i', 'igor-computer', 'computer-use-linux', 'mcp'],
-      env: runtimeEnv, stderr: 'inherit',
-    }));
-    return client;
-  }) { this.connect = connect; }
+  constructor(connect) { this.connect = connect; }
 
   async client(workspace, generation) {
     const previous = this.clients.get(workspace);

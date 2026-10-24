@@ -104,7 +104,31 @@ def workspace(action, args):
             'generation': generation(), 'windows': windows()}
 
 
+# Viewer and status reads never block human takeover.
+READ_ONLY = (b'status', b'frame', b'apps', b'workspace_list')
+
+
 def execute(action, args):
+    if action == 'frame':
+        import frame
+        desktop = args.get('desktop')
+        if type(desktop) is not int or not 0 <= desktop < 32: raise ValueError('Invalid desktop.')
+        return frame.capture(desktop)
+    if action == 'apps':
+        import apps
+        return apps.catalog()
+    if action == 'apps_launch':
+        import apps
+        if not isinstance(args.get('id'), str) or type(args.get('desktop')) is not int: raise ValueError('Invalid application launch.')
+        return apps.launch(args['id'], args['desktop'])
+    if action == 'roster':
+        import roster
+        return roster.reconcile(args)
+    if action == 'appearance':
+        import appearance
+        if not isinstance(args.get('dark'), bool): raise ValueError('Invalid appearance.')
+        appearance.apply(args['dark'])
+        return {'ok': True}
     if action == 'status':
         busy = False
         for file in Path('/proc').glob('[0-9]*/cmdline'):
@@ -112,7 +136,7 @@ def execute(action, args):
                 parts = file.read_bytes().split(b'\0')
                 if b'/opt/igor-computer/computer.py' in parts:
                     index = parts.index(b'/opt/igor-computer/computer.py')
-                    if len(parts) > index + 1 and parts[index + 1] != b'status': busy = True
+                    if len(parts) > index + 1 and parts[index + 1] not in READ_ONLY: busy = True
             except OSError: pass
         return {'busy': busy}
     if action in ('workspace_list', 'workspace_create', 'workspace_select', 'workspace_move', 'workspace_open_browser'):

@@ -17,7 +17,7 @@ wait again; only continued permits resuming. Inspect fresh page state first.
 On cancelled, stop this task. Do not interpret later unrelated manual browser
 use as permission to resume it. The user solves CAPTCHAs and enters secrets.
 
-User-initiated Open Computer pauses all automation too. Do not work around a
+When the user takes control of your workspace, its tools pause until they finish. Do not work around a
 paused/busy response, access the raw CDP endpoint, or open another client to
 bypass the ownership gate. A visible browser does not guarantee site acceptance.
 
@@ -48,3 +48,9 @@ Refresh app state before reusing snapshot element indices. computer_ui_click,
 computer_ui_press_key, computer_ui_type_text, computer_ui_drag and
 computer_ui_scroll provide physical-input fallback. These tools select your
 workspace under the same ownership gate. Shared browser logins remain shared.
+
+## Computer-provided tools
+
+A computer's definition can add MCP servers that run inside it. Their tools are
+named server__tool (for example files__read_file) and run inside the computer
+under the same ownership gate. Prefer them over shell commands when they fit.

@@ -123,8 +123,10 @@ document.querySelector("#workspaces").onchange=event=>selectWorkspace(event.targ
 document.querySelector("#open-browser").onclick=async()=>{try{await rpc("/workspaces",{action:"open_browser",name:document.querySelector("#workspaces").value,reuse:true});await refreshWindows()}catch(error){showError(error)}};
 
 document.querySelector('#view-menu').onclick=event=>{const menu=makePopup(event.currentTarget);const item=document.createElement('button');item.className='launch';item.textContent='restore windows';item.disabled=status?.mode!=='human';item.onclick=()=>{dismissPopup();void windowAction('restore')};menu.append(item)};
+// Each computer serves this viewer at <computer path>/viewer.
+const base = location.pathname.replace(/\/viewer$/, '');
 async function rpc(path, args) {
-  const response = await fetch(path, { method: args === undefined ? 'GET' : 'POST', ...(args === undefined ? {} : { headers: {'Content-Type':'application/json'}, body: JSON.stringify(args) }) });
+  const response = await fetch(base + path, { method: args === undefined ? 'GET' : 'POST', ...(args === undefined ? {} : { headers: {'Content-Type':'application/json'}, body: JSON.stringify(args) }) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'could not connect');
   return result;
@@ -145,8 +147,8 @@ async function connect(token) {
     void refreshFrame();
   } else if (!rfb) {
     preview.hidden=true;hint.classList.remove('visible');hint.setAttribute('aria-hidden','true');
-    const {default:RFB} = await import('/vnc/core/rfb.js');
-    rfb = new RFB(document.querySelector('#screen'), `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/vnc/websockify`);
+    const {default:RFB} = await import(base + '/vnc/core/rfb.js');
+    rfb = new RFB(document.querySelector('#screen'), `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${base}/vnc/websockify`);
     rfb.scaleViewport=true;rfb.resizeSession=false;
     rfb.addEventListener('connect',()=>{message.style.display='none';rfb?.focus();void refreshWindows().catch(showError)});
     rfb.addEventListener('disconnect',()=>{rfb=null;});

@@ -35,6 +35,7 @@ probes:
 portForwards:
 - guestSocket: /var/run/docker.sock
   hostSocket: "{{.Dir}}/sock/docker.sock"
+# Host ports are set per computer at creation (CDP, then display).
 - guestPort: 18422
   hostPort: 18422
   hostIP: 127.0.0.1

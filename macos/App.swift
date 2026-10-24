@@ -51,6 +51,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var timer: Timer?
     var worker: Process?
     var lastRequest: String?
+    // The computer this app shows. Others still raise help notifications.
+    var computer = UserDefaults.standard.string(forKey: "computer") ?? "default"
+    var computers: [[String: Any]] = []
+    var notifiedRequests = Set<String>()
+    var computerPath: String { computer == "default" ? "" : "/computers/" + computer }
     var mode = "starting"
     var helpMessage = ""
     var opening = false
@@ -181,7 +186,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             completion(.failure(NSError(domain: "IgorComputer", code: 1, userInfo: [NSLocalizedDescriptionKey: "computer service is starting."])))
             return
         }
-        var request = URLRequest(url: URL(string: origin + path)!)
+        // Host-wide routes are global; everything else addresses the shown computer.
+        let global = ["/appearance", "/client-status", "/computers"].contains(path)
+        var request = URLRequest(url: URL(string: origin + (global ? "" : computerPath) + path)!)
         request.httpMethod = post ? "POST" : "GET"
         if let arguments = arguments {
             request.httpBody = try? JSONSerialization.data(withJSONObject: arguments)
@@ -248,10 +255,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 }
             }
             self.request("/client-status", post: true, arguments: ["notifications": self.notificationReady, "login": self.loginReady]) { _ in }
+            self.request("/computers") { result in
+                guard case .success(let value) = result else { return }
+                self.computers = value["computers"] as? [[String: Any]] ?? []
+                self.notifyOtherComputers()
+                self.updateMenu()
+            }
             self.renderSetup()
             self.updateMenu()
             self.refreshBrowserWindows()
         }
+    }
+
+    func notifyOtherComputers() {
+        guard notificationReady && notificationError == nil else { return }
+        for entry in computers {
+            guard let name = entry["name"] as? String, name != computer, entry["mode"] as? String == "pending",
+                  let request = entry["request"] as? [String: Any], let id = request["id"] as? String, !notifiedRequests.contains(id) else { continue }
+            notifiedRequests.insert(id)
+            let content = UNMutableNotificationContent()
+            content.title = "igor.computer · \(name) needs your help"
+            content.body = request["message"] as? String ?? "your ai needs your help."
+            content.userInfo = ["computer": name]
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+        }
+    }
+
+    @objc func selectComputer(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String, name != computer else { return }
+        switchComputer(to: name) { self.showBrowser() }
+    }
+
+    func switchComputer(to name: String, then: @escaping () -> Void) {
+        let change = {
+            self.computer = name
+            UserDefaults.standard.set(name, forKey: "computer")
+            self.viewerOpen = false
+            self.mode = "starting"
+            self.updateMenu()
+            then()
+        }
+        // Release the current computer's viewer first, so it can sleep again.
+        if viewerOpen || mode == "human" { request("/close-viewer", post: true) { _ in self.hideWindow(); change() } }
+        else { change() }
     }
 
     func updateMenu() {
@@ -266,7 +312,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let pause = menu.addItem(withTitle: automationPaused ? "resume automation" : "pause automation", action: #selector(togglePause), keyEquivalent: "")
         pause.isEnabled = !pauseChangeRunning && (["agent", "paused", "human", "pending"].contains(mode))
         menu.autoenablesItems = false
-        menu.addItem(withTitle: "open computer", action: #selector(showBrowser), keyEquivalent: "")
+        menu.addItem(withTitle: computers.count > 1 ? "open \(computer)" : "open computer", action: #selector(showBrowser), keyEquivalent: "")
+        if computers.count > 1 {
+            let submenu = NSMenu()
+            for entry in computers {
+                guard let name = entry["name"] as? String else { continue }
+                let pending = entry["mode"] as? String == "pending"
+                let choice = submenu.addItem(withTitle: name + (pending ? " · needs help" : ""), action: #selector(selectComputer(_:)), keyEquivalent: "")
+                choice.representedObject = name
+                choice.state = name == computer ? .on : .off
+                choice.target = self
+            }
+            menu.addItem(withTitle: "computers", action: nil, keyEquivalent: "").submenu = submenu
+        }
         menu.addItem(withTitle: "settings…", action: #selector(showSetup), keyEquivalent: ",")
         if let updater = updater {
             let update = menu.addItem(withTitle: "check for updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
@@ -276,7 +334,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         menu.addItem(withTitle: "server…", action: #selector(configureServer), keyEquivalent: "")
         menu.addItem(withTitle: "quit igor.computer", action: #selector(quit), keyEquivalent: "q")
         for entry in menu.items where entry.action != nil && entry.target == nil { entry.target = self }
-        for entry in menu.items where entry.action == nil { entry.isEnabled = false }
+        for entry in menu.items where entry.action == nil && entry.submenu == nil { entry.isEnabled = false }
         if !statusMenuOpen && pauseTip?.isShown != true { item.menu = menu }
         item.button?.image = NSImage(systemSymbolName: mode == "pending" ? "exclamationmark.bubble" : (mode == "paused" ? "pause.circle" : (setupComplete ? "globe" : "exclamationmark.circle")), accessibilityDescription: state)
         item.button?.toolTip = setupComplete ? state : "igor.computer needs setup"
@@ -326,7 +384,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 self.selectedWorkspace = status["viewedWorkspace"] as? String ?? "shared"
                 self.makeWindow()
                 guard let token = self.token else { return }
-                self.webView?.load(URLRequest(url: URL(string: self.origin + "/viewer?native=1#" + token)!))
+                self.webView?.load(URLRequest(url: URL(string: self.origin + self.computerPath + "/viewer?native=1#" + token)!))
                 self.prepareVisibleInterface()
                 NSApp.activate(ignoringOtherApps: true)
                 self.window?.makeKeyAndOrderFront(nil)
@@ -473,7 +531,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         let url = navigationAction.request.url
-        decisionHandler(url?.host == "127.0.0.1" && url?.port == 18420 || url?.absoluteString == "about:blank" ? .allow : .cancel)
+        let server = URL(string: origin)
+        decisionHandler(url?.scheme == server?.scheme && url?.host == server?.host && url?.port == server?.port || url?.absoluteString == "about:blank" ? .allow : .cancel)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -484,6 +543,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         DispatchQueue.main.async {
+            if let name = response.notification.request.content.userInfo["computer"] as? String, name != self.computer {
+                self.switchComputer(to: name) { self.showBrowser(); completionHandler() }
+                return
+            }
             self.request("/status") { result in
                 if case .success(let status) = result, status["mode"] as? String == "pending",
                    let request = status["request"] as? [String: Any], request["id"] as? String == response.notification.request.identifier {

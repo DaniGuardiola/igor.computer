@@ -1,0 +1,22 @@
+// A team computer: tools, repos and an MCP server on top of the base OS.
+// Create it with: igor-computer create team ./examples/team
+{
+  "name": "team",
+  "containerEnv": { "NODE_ENV": "development" },
+  "postCreateCommand": "cd /workspace/Hello-World && git log --oneline -1 > /workspace/.igor/created.txt",
+  "customizations": {
+    "igor.computer": {
+      "resources": { "cpus": 2, "memory": "4GiB" },
+      "packages": ["nodejs", "npm", "jq", "ripgrep"],
+      "repos": ["https://github.com/octocat/Hello-World"],
+      "mcp": {
+        "files": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.8.31", "/workspace"] }
+      },
+      "services": {
+        "preview": "python3 -m http.server 8000 --bind 127.0.0.1 --directory /workspace"
+      },
+      "secrets": { "GITHUB_TOKEN": "env:GITHUB_TOKEN?" },
+      "idleSleep": "10m"
+    }
+  }
+}

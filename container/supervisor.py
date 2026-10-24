@@ -21,6 +21,42 @@ def start(args):
     children.append(process)
     return process
 
+def definition():
+    try:
+        with open('/opt/igor-computer/definition.json') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
+
+
+class Service:
+    """A definition service: restarted with backoff, never fatal to the computer."""
+    def __init__(self, name, command):
+        self.name, self.command = name, command
+        self.args = command if isinstance(command, list) else ['bash', '-lc', command]
+        self.process, self.next_start, self.failures = None, 0, 0
+
+    def poll(self, now):
+        if self.process and self.process.poll() is None:
+            if now - self.started > 30: self.failures = 0
+            return
+        if self.process:
+            self.failures += 1
+            self.next_start = now + min(60, 2 ** self.failures)
+            self.process = None
+        if now >= self.next_start:
+            log = open('/tmp/igor-computer-service-' + self.name + '.log', 'ab')
+            self.process = subprocess.Popen(self.args, cwd='/workspace', stdout=log, stderr=log, start_new_session=True)
+            self.started = now
+
+    def stop(self):
+        if self.process and self.process.poll() is None:
+            self.process.terminate()
+
+
+settings = definition()
+services = [Service(name, command) for name, command in settings.get('services', {}).items()]
+
 try:
     # This named container exclusively owns its profile volume. Remove stale
     # singleton symlinks left by a previous container hostname after a crash.
@@ -73,7 +109,9 @@ try:
     start(['websockify', '--web=/usr/share/novnc', '--web-auth',
            '--auth-plugin=BasicHTTPAuth', '--auth-source=' + display_credentials,
            '6080', 'localhost:5900'])
-    start(['socat', 'TCP-LISTEN:9222,fork,reuseaddr', 'TCP:127.0.0.1:9223'])
+    use_browser = settings.get('browser', True)
+    if use_browser:
+        start(['socat', 'TCP-LISTEN:9222,fork,reuseaddr', 'TCP:127.0.0.1:9223'])
     # New profiles use Chromium's ordinary GTK theme setting. Existing themes
     # remain user-controlled; appearance changes use the desktop settings service.
     preferences = '/profile/Default/Preferences'
@@ -91,10 +129,11 @@ try:
             json.dump({'generation': str(uuid.uuid4())}, file)
         os.replace('/tmp/igor-computer-generation.tmp', '/tmp/igor-computer-generation.json')
         return process
-    browser = launch_browser()
+    browser = launch_browser() if use_browser else None
     restart_attempts = []
     while not stopping:
-        if browser.poll() is not None:
+        for service in services: service.poll(time.monotonic())
+        if browser and browser.poll() is not None:
             # Keep the computer and CDP available, without reopening user windows.
             if browser.returncode != 0:
                 now = time.monotonic()
@@ -108,12 +147,13 @@ try:
             time.sleep(0.5)
             browser = launch_browser()
         for child in children:
-            if child.poll() is not None:
+            if child is not browser and child.poll() is not None:
                 raise RuntimeError('Browser component exited: ' + str(child.args[0]))
         time.sleep(0.5)
 finally:
+    for service in services: service.stop()
     # Give Chromium first chance to flush its profile while the display still exists.
-    if 'browser' in globals() and browser.poll() is None:
+    if globals().get('browser') and browser.poll() is None:
         browser.terminate()
         try:
             browser.wait(timeout=15)

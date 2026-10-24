@@ -1,9 +1,20 @@
 # igor.computer
 
-A persistent computer for your agents. One server, wherever you run it.
+Persistent computers for your agents. One server, wherever you run it.
 
-The server owns a native-architecture QEMU Linux VM managed by Lima. Inside it,
-stock Debian 13 Chromium, Xvfb and Openbox provide a headed desktop. Browser logins
+igor.computer is the hardware: it runs computers as native QEMU VMs managed by
+Lima, sleeps them to disk with their RAM, and exposes them to agents over MCP,
+with a viewer and human takeover. What runs inside is an OS image that meets a
+small [OS contract](docs/computers.md#the-os-contract). The base image is stock
+Debian 13 with Chromium, Xvfb and Openbox. You cook your own computers with a
+standard [devcontainer.json](docs/computers.md#definitions): tools, repos, MCP
+servers, services, mounts and secrets. See [docs/computers.md](docs/computers.md).
+
+```sh
+igor-computer init ~/code/acme && igor-computer create team ~/code/acme
+```
+
+Each computer has a headed desktop. Browser logins
 and extensions are shared across named OS workspaces. Separate MCP workspace
 connections keep their own DevTools page selection; accounts remain shared.
 The macOS app and authenticated web viewer are clients of the same server.
@@ -26,7 +37,7 @@ macOS requires Apple Silicon, macOS 13+, Homebrew, and Xcode command-line tools
 for development builds:
 
 ```sh
-brew install lima qemu docker
+brew install lima qemu docker docker-buildx
 npm ci
 npm run build:mac
 bash scripts/install-mac.sh --replace --enable-login
@@ -63,13 +74,15 @@ For local stdio MCP, configure your client with absolute installed paths:
     "igor-computer": {
       "command": "/Users/NAME/Library/Application Support/igor.computer/server/bin/node",
       "args": ["/Users/NAME/Library/Application Support/igor.computer/server/src/mcp.mjs"],
-      "env": {"IGOR_COMPUTER_WORKSPACE": "agent-name"}
+      "env": {"IGOR_COMPUTER_WORKSPACE": "agent-name", "IGOR_COMPUTER": "default"}
     }
   }
 }
 ```
 
-Remote clients can use authenticated Streamable HTTP at `https://HOST/mcp`,
+`IGOR_COMPUTER` picks a named computer (default: `default`).
+Remote clients can use authenticated Streamable HTTP at `https://HOST/mcp`, or
+`https://HOST/computers/NAME/mcp` for a named computer,
 with `Authorization: Bearer CREDENTIAL` and an optional `X-Igor-Workspace` header.
 The stdio bridge also supports `IGOR_COMPUTER_URL` and `IGOR_COMPUTER_TOKEN_FILE`. Credentials
 belong in private client configuration/files, never prompts or tool arguments.
@@ -91,9 +104,9 @@ Preserve the public Host header and forward WebSocket upgrades. Expose only the
 authenticated service port, never raw CDP/VNC or the Docker socket. A non-loopback
 bind requires an HTTPS public origin; the TLS reverse proxy terminates TLS.
 Environment variables `IGOR_COMPUTER_HOST`, `IGOR_COMPUTER_PORT`, `IGOR_COMPUTER_ORIGIN`,
-`IGOR_COMPUTER_IDLE_SECONDS`, `IGOR_COMPUTER_NAME`, `IGOR_COMPUTER_LIMA_HOME` and
-`IGOR_COMPUTER_STATE_DIR` override configuration. This version runs one persistent
-computer per host; multi-user hosting needs separate hosts or isolated VM services.
+`IGOR_COMPUTER_IDLE_SECONDS`, `IGOR_COMPUTER_LIMA_HOME` and `IGOR_COMPUTER_STATE_DIR`
+override configuration. One server runs any number of computers, each in its own
+VM; multi-user hosting needs separate servers.
 
 ## Computer tools
 
@@ -259,6 +272,6 @@ The native window and web viewer keep the taskbar below the guest display. The a
 
 Pin apps from the apps menu, reorder shortcuts by dragging, or drag a shortcut away to unpin. Right-click a native shortcut for open, new Chromium window, and unpin actions. Removing a shortcut never uninstalls an app. Pins persist on the server and are shared by both viewers.
 
-Workspace switching briefly fades through the selected workspace's picture and name, suppressing viewer input during the transition. Reduced-motion preferences disable the fade. Agent workspace IDs remain stable across renames; their pictures and names can be updated through authenticated `POST /workspace-profile` using the workspace header and `{label, avatar}`. `avatar` is a PNG/JPEG/WebP data URL or null; metadata updates do not wake the VM or acquire desktop control.
+Workspace switching briefly fades through the selected workspace's picture and name, suppressing viewer input during the transition. Reduced-motion preferences disable the fade. Agent workspace IDs remain stable across renames; their pictures and names come from the roster sent to authenticated `POST /workspace-sync` as `{owner, profiles: [{id, label, avatar}]}`. `avatar` is a PNG/JPEG/WebP data URL or null. A roster sent while the computer sleeps is applied when it next wakes; syncing never wakes it.
 
 Parallel browser acceptance check: with **your desktop** open and two existing agent workspaces, run `node tests/parallel-live.mjs <agent-workspace-id> <other-agent-workspace-id>`. It checks concurrent MCP browser actions, workspace recovery, DOM click/fill, stable personal desktop focus, and cleanup of only its own test windows.

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
-import { runtimeEnv, vmDir, vmName } from '../src/config.mjs';
+import { Registry, computerContext, defaultComputer } from '../src/computers.mjs';
+const { env: runtimeEnv, vmDir, vmName } = computerContext(defaultComputer, (await new Registry().read())[defaultComputer]);
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
@@ -14,17 +15,17 @@ const exec = promisify(execFile);
 const name = 'igor-computer-window-test-' + randomUUID().slice(0, 8);
 const volume = name + '-profile';
 const docker = async (...args) => (await exec('docker', args, { timeout: 60000, maxBuffer: 2 * 1024 * 1024, env: runtimeEnv })).stdout.trim();
-const tunnel = action => exec('ssh', ['-F', join(vmDir, 'ssh.config'), '-O', action, '-L', '127.0.0.1:18432:127.0.0.1:18432', 'lima-' + vmName]);
+const tunnel = action => exec('ssh', ['-F', join(vmDir, 'ssh.config'), '-O', action, '-L', '127.0.0.1:18499:127.0.0.1:18499', 'lima-' + vmName]);
 const computer = async (action, args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-computer/computer.py', action, JSON.stringify(args)));
 const windows = async (action = 'list', args = {}) => JSON.parse(await docker('exec', name, 'python3', '/opt/igor-computer/windows.py', action, ...(action === 'list' ? [] : [args.id || '', args.generation])));
 async function waitFor(check) { for (let i = 0; i < 60; i++) { try { const result = await check(); if (result) return result; } catch {} await delay(250); } throw Error('Timed out'); }
 let socket, a, b, fresh;
 try {
   await tunnel('forward');
-  await docker('run', '-d', '--name', name, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges=true', '--security-opt', 'seccomp=' + process.cwd() + '/container/seccomp.json', '--shm-size', '512m', '--memory', '2g', '--cpus', '2', '-p', '127.0.0.1:18432:9222', '-v', volume + ':/profile', 'igor-computer:0.2.0');
-  const version = await waitFor(async () => { const response = await fetch('http://127.0.0.1:18432/json/version'); return response.ok && response.json(); });
+  await docker('run', '-d', '--name', name, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges=true', '--security-opt', 'seccomp=' + process.cwd() + '/container/seccomp.json', '--shm-size', '512m', '--memory', '2g', '--cpus', '2', '-p', '127.0.0.1:18499:9222', '-v', volume + ':/profile', 'igor-computer-base');
+  const version = await waitFor(async () => { const response = await fetch('http://127.0.0.1:18499/json/version'); return response.ok && response.json(); });
   assert.equal((await windows()).windows.length, 0);
-  socket = new WebSocket(version.webSocketDebuggerUrl.replace('127.0.0.1:9223', '127.0.0.1:18432').replace('localhost:9223', '127.0.0.1:18432'));
+  socket = new WebSocket(version.webSocketDebuggerUrl.replace('127.0.0.1:9223', '127.0.0.1:18499').replace('localhost:9223', '127.0.0.1:18499'));
   await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
   let sequence = 0;
   const pending = new Map();
@@ -34,7 +35,7 @@ try {
   const helper = new BrowserWorkspaces(computer, windows);
   async function client(label) {
     const result = new Client({ name: label, version: '1' });
-    await result.connect(new StdioClientTransport({ command: process.execPath, args: ['node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js', '--browser-url=http://127.0.0.1:18432', '--no-usage-statistics', '--no-performance-crux'], stderr: 'ignore' }));
+    await result.connect(new StdioClientTransport({ command: process.execPath, args: ['node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js', '--browser-url=http://127.0.0.1:18499', '--no-usage-statistics', '--no-performance-crux'], stderr: 'ignore' }));
     return result;
   }
   a = await client('agent-a'); b = await client('agent-b');
@@ -76,7 +77,7 @@ try {
   for (const window of before.windows) await windows('close', { id: window.id, generation: before.generation });
   await delay(4000);
   assert.equal((await windows()).windows.length, 0);
-  assert.equal((await fetch('http://127.0.0.1:18432/json/version')).status, 200);
+  assert.equal((await fetch('http://127.0.0.1:18499/json/version')).status, 200);
   assert.ok(!(await a.callTool({ name: 'list_pages', arguments: {} })).isError);
   assert.equal((await windows()).windows.length, 0);
   await helper.ensure('agent-b', 'agent-b', b, 'list_pages');
