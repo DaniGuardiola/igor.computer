@@ -21,9 +21,6 @@ const usage = `usage: igor-computer <command>
   rm <name>                       delete a computer, its VM and all its data
   viewer [name]                   print the viewer URL
   mcp [name]                      run the stdio MCP bridge for a computer
-  run [name] "task"               let the built-in agent do a task on a computer
-      [--model provider:model]    anthropic, openai or openrouter (needs its API key)
-      [--workspace w] [--steps n]
   check [path]                    validate a definition without a server
   init [folder]                   write a starter .igor-computer/devcontainer.json
 
@@ -134,23 +131,6 @@ try {
     case 'mcp': {
       if (positional[0]) process.env.IGOR_COMPUTER = positional[0];
       await import('./mcp.mjs');
-      break;
-    }
-    case 'run': {
-      const [name, task] = positional.length > 1 ? positional : ['default', positional[0]];
-      need(task, 'task');
-      const { runAgent } = await import('./agent.mjs');
-      let atLineStart = true;
-      const result = await runAgent({ task, computer: name, model: typeof flags.model === 'string' ? flags.model : undefined,
-        workspace: typeof flags.workspace === 'string' ? flags.workspace : undefined, steps: flags.steps ? Number(flags.steps) : undefined,
-        onEvent: event => {
-          if (event.type === 'TEXT_MESSAGE_CONTENT') { process.stdout.write(event.delta); atLineStart = event.delta.endsWith('\n'); }
-          else if (event.type === 'TOOL_CALL_START') { process.stderr.write(`${atLineStart ? '' : '\n'}· ${event.toolCallName}\n`); atLineStart = true; }
-          else if (event.type === 'RUN_ERROR') process.stderr.write(`\nerror: ${event.message}\n`);
-          else if (event.type === 'RUN_FINISHED' && event.outcome?.type === 'interrupt') process.stderr.write('\nStopped: an action needs your approval. Run the task from an app that can approve it.\n');
-        } });
-      if (!atLineStart) process.stdout.write('\n');
-      console.error(`(${result.model}; watch with igor-computer viewer${name === 'default' ? '' : ' ' + name})`);
       break;
     }
     case 'check': {

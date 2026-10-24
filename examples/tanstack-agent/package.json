@@ -1,0 +1,16 @@
+{
+  "name": "igor-computer-tanstack-agent-example",
+  "private": true,
+  "type": "module",
+  "description": "A small agent that works on an igor.computer computer, built with TanStack AI.",
+  "scripts": {
+    "start": "node agent.mjs"
+  },
+  "dependencies": {
+    "@tanstack/ai": "1.0.0",
+    "@tanstack/ai-anthropic": "1.0.0",
+    "@tanstack/ai-computer-use": "1.0.0",
+    "@tanstack/ai-mcp": "1.0.0",
+    "igor-computer": "file:../.."
+  }
+}

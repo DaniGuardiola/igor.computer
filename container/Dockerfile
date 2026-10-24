@@ -3,6 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium chromium-sandbox xvfb openbox x11vnc novnc websockify \
     feh xsettingsd gnome-themes-extra-data xdg-desktop-portal-gtk dbus dbus-x11 at-spi2-core libglib2.0-bin gsettings-desktop-schemas libxkbcommon0 socat python3 python3-venv python3-pip git curl xdotool scrot tini wmctrl x11-utils ca-certificates fonts-liberation fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/* \
+    && sed -i 's|<popupTime>[0-9]*</popupTime>|<popupTime>0</popupTime>|' /etc/xdg/openbox/rc.xml \
     && useradd --create-home --uid 1000 browser \
     && mkdir /profile /workspace && chown browser:browser /profile /workspace
 # Pinned upstream release; verify each supported architecture against its hash.

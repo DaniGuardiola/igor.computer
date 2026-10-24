@@ -59,8 +59,12 @@ def apply(dark):
     node = tree.find('{http://openbox.org/3.4/rc}theme/{http://openbox.org/3.4/rc}name')
     if node is not None:
         node.text = 'Onyx' if dark else 'Clearlooks'
-        tree.write(rc, encoding='utf-8', xml_declaration=True)
-        subprocess.run(['openbox', '--reconfigure'], check=True)
+    # Switching workspaces must not flash a "desktop N" popup into screenshots.
+    popup = tree.find('{http://openbox.org/3.4/rc}desktops/{http://openbox.org/3.4/rc}popupTime')
+    if popup is not None:
+        popup.text = '0'
+    tree.write(rc, encoding='utf-8', xml_declaration=True)
+    subprocess.run(['openbox', '--reconfigure'], check=True)
     image = state / ('desktop-dark-v2.png' if dark else 'desktop-light-v2.png')
     if not image.exists():
         image.write_bytes(wallpaper(dark))

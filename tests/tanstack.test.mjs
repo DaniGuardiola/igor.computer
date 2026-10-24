@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { igorComputer, keysym } from '../src/tanstack.mjs';
-import { chooseModel } from '../src/agent.mjs';
 
 test('KeyboardEvent key names map to X11 keysyms', () => {
   assert.deepEqual(['Enter', 'Control', 'ArrowLeft', 'a', 'F5', ' ', '/', 'PageDown'].map(keysym), ['Return', 'ctrl', 'Left', 'a', 'F5', 'space', 'slash', 'Next']);
@@ -37,12 +36,4 @@ test('the TanStack driver drives a per-thread workspace through the computer API
     assert.deepEqual(calls.map(call => call.arguments), [{}, { kind: 'click', x: 10, y: 21, button: 3, count: 2 }, { kind: 'key', key: 'ctrl+shift+t' },
       { kind: 'scroll', x: 5, y: 6, dx: 0, dy: -250 }, { kind: 'cursor' }, { region: { x: 0, y: 0, width: 10, height: 10 } }]);
   } finally { server.close(); }
-});
-
-test('the built-in agent picks a model from flags or available API keys', () => {
-  assert.deepEqual(['anthropic', 'openai', 'openrouter'].map(name => chooseModel(name, { ANTHROPIC_API_KEY: 'a', OPENAI_API_KEY: 'o', OPENROUTER_API_KEY: 'r' }).model), ['claude-sonnet-5-5', 'gpt-6.1-sol', 'anthropic/claude-sonnet-5-5']);
-  assert.equal(chooseModel(undefined, { OPENAI_API_KEY: 'o' }).provider, 'openai');
-  assert.equal(chooseModel('anthropic:claude-opus-5-5', { ANTHROPIC_API_KEY: 'a' }).model, 'claude-opus-5-5');
-  assert.throws(() => chooseModel('anthropic', {}), /Set ANTHROPIC_API_KEY/);
-  assert.throws(() => chooseModel('mystery', {}), /Unknown provider/);
 });

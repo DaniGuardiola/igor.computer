@@ -3,10 +3,10 @@ import { createMCPServer } from '@tanstack/ai-mcp/server';
 
 const object = (properties = {}, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
 export const extraTools = [
-  { name: 'browser_status', description: 'Check computer ownership, VM lifecycle, active turns and help requests.', inputSchema: object() },
-  { name: 'browser_request_human', description: 'Ask the person for help with a login, CAPTCHA, payment, secret or decision. This only notifies them: nothing pauses, and you can keep working on other things. Returns the request; check on it with browser_wait_human. A new request from you replaces your previous open one. If you solve it another way, call browser_withdraw_human.', inputSchema: object({ message: { type: 'string', minLength: 1, maxLength: 300 }, pageId: { type: 'integer' } }, ['message']) },
-  { name: 'browser_wait_human', description: 'Wait up to timeoutSeconds for a help request to resolve. Outcomes: continued (the person took control and handed it back; look at the page again before going on), dismissed (the person declined; do not retry it unasked), withdrawn, replaced, expired, or waiting (still open; you may keep waiting or do other work). If no notification reached the person, give them the returned viewer URL.', inputSchema: object({ requestId: { type: 'string' }, timeoutSeconds: { type: 'number', minimum: 1, maximum: 60 } }, ['requestId']) },
-  { name: 'browser_withdraw_human', description: 'Withdraw your open help request, for example when you found another way or the person answered in chat.', inputSchema: object({ requestId: { type: 'string' } }, ['requestId']) },
+  { name: 'browser_status', annotations: { readOnlyHint: true, openWorldHint: false }, description: 'Check computer ownership, VM lifecycle, active turns and help requests.', inputSchema: object() },
+  { name: 'browser_request_human', annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }, description: 'Ask the person for help with a login, CAPTCHA, payment, secret or decision. This only notifies them: nothing pauses, and you can keep working on other things. Returns the request; check on it with browser_wait_human. A new request from you replaces your previous open one. If you solve it another way, call browser_withdraw_human.', inputSchema: object({ message: { type: 'string', minLength: 1, maxLength: 300 }, pageId: { type: 'integer' } }, ['message']) },
+  { name: 'browser_wait_human', annotations: { readOnlyHint: true, openWorldHint: false }, description: 'Wait up to timeoutSeconds for a help request to resolve. Outcomes: continued (the person took control and handed it back; look at the page again before going on), dismissed (the person declined; do not retry it unasked), withdrawn, replaced, expired, or waiting (still open; you may keep waiting or do other work). If no notification reached the person, give them the returned viewer URL.', inputSchema: object({ requestId: { type: 'string' }, timeoutSeconds: { type: 'number', minimum: 1, maximum: 60 } }, ['requestId']) },
+  { name: 'browser_withdraw_human', annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, description: 'Withdraw your open help request, for example when you found another way or the person answered in chat.', inputSchema: object({ requestId: { type: 'string' } }, ['requestId']) },
 ];
 
 const text = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
@@ -52,7 +52,8 @@ export async function callTool(call, name, args = {}, signal) {
 export function createGateway(tools, call) {
   return createMCPServer({
     name: 'igor.computer', version: '0.2.0',
-    tools: [...tools, ...extraTools].map(tool => toolDefinition({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || object() })
+    tools: [...tools, ...extraTools].map(tool => toolDefinition({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || object(),
+      ...(tool.title || tool.annotations ? { metadata: { ...(tool.title ? { title: tool.title } : {}), ...(tool.annotations ? { annotations: tool.annotations } : {}) } } : {}) })
       .server((args, context) => callTool(call, tool.name, args, context?.abortSignal))),
   });
 }

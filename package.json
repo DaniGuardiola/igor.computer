@@ -20,16 +20,11 @@
   "dependencies": {
     "@devcontainers/cli": "0.89.0",
     "@tanstack/ai": "1.0.0",
-    "@tanstack/ai-anthropic": "1.0.0",
     "@tanstack/ai-computer-use": "1.0.0",
-    "@tanstack/ai-harness": "0.1.0",
     "@tanstack/ai-mcp": "1.0.0",
-    "@tanstack/ai-openai": "1.0.0",
-    "@tanstack/ai-openrouter": "1.0.0",
     "chrome-devtools-mcp": "1.12.0",
     "http-proxy": "1.18.1",
-    "ws": "8.22.0",
-    "zod": "4.6.7"
+    "ws": "8.22.0"
   },
   "bin": {
     "igor-computer": "src/cli.mjs"
@@ -40,6 +35,6 @@
   "exports": {
     ".": "./src/cli.mjs",
     "./tanstack": "./src/tanstack.mjs",
-    "./agent": "./src/agent.mjs"
+    "./config": "./src/config.mjs"
   }
 }

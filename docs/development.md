@@ -11,7 +11,7 @@
 | `src/computers.mjs` | The registry of computers and their ports. |
 | `src/providers.mjs` | MCP servers that run inside a computer. |
 | `src/mcp.mjs`, `src/mcp-server.mjs`, `src/mcp-clients.mjs` | The stdio bridge, the MCP gateway and the internal MCP clients, on TanStack AI. |
-| `src/tanstack.mjs`, `src/agent.mjs`, `src/cli.mjs` | The TanStack AI computer-use driver, the built-in agent and the `igor-computer` CLI. |
+| `src/tanstack.mjs`, `src/cli.mjs` | The TanStack AI computer-use driver and the `igor-computer` CLI. |
 | `src/viewer.html` | The web viewer. |
 | `container/` | The base OS image and its control actions (the OS contract's reference). |
 | `vm/` | The Lima VM template and the resume script used after sleep. |

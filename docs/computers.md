@@ -53,7 +53,6 @@ The CLI is installed at `…/igor.computer/server/bin/igor-computer`:
 | `igor-computer status [NAME]` | Detailed status. |
 | `igor-computer viewer [NAME]` | Print the viewer URL. |
 | `igor-computer mcp [NAME]` | Run the stdio MCP bridge for agents. |
-| `igor-computer run [NAME] "task"` | Let the built-in agent do a task ([TanStack AI](tanstack.md)). |
 | `igor-computer rm NAME` | Delete the computer, its VM, logins and files. Asks first. |
 
 Connect an agent to it:

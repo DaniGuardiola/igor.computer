@@ -1,38 +1,17 @@
 # TanStack AI
 
-igor.computer is built on [TanStack AI](https://tanstack.com/ai) wherever it
-talks to models or to MCP:
+igor.computer uses [TanStack AI](https://tanstack.com/ai) wherever it speaks MCP,
+and offers a TanStack AI driver so your own apps can use its computers.
+igor.computer never runs a model itself: your agent is the brain.
 
 | Part | TanStack AI package |
 | --- | --- |
-| The MCP endpoint agents connect to (`/mcp` and the stdio bridge) | `@tanstack/ai-mcp/server` (`createMCPServer`, `serveMCPStdio`) |
+| The MCP endpoint agents connect to (`/mcp`), and the stdio bridge (`igor-computer mcp`) | `@tanstack/ai-mcp/server` (`createMCPServer`, `serveMCPStdio`) |
 | Connections to Chrome DevTools MCP, computer-use-linux and the MCP servers inside computers | `@tanstack/ai-mcp` (`createMCPClient`) |
 | The computer-use driver for your own TanStack AI apps | `@tanstack/ai-computer-use` |
-| The built-in agent (`igor-computer run`) | `@tanstack/ai` (`chat`), `@tanstack/ai-anthropic`, `@tanstack/ai-openai`, `@tanstack/ai-openrouter` |
 
-## The built-in agent
-
-`igor-computer run` gives a task to an agent that works on a computer. It's the
-quickest way to try a computer without setting up an agent client.
-
-```sh
-export ANTHROPIC_API_KEY=…            # or OPENAI_API_KEY, or OPENROUTER_API_KEY
-igor-computer run "clone https://github.com/octocat/Hello-World and tell me its last commit"
-igor-computer run acme "run the web app's tests and open the coverage report" --model anthropic:claude-opus-5-5
-```
-
-It uses the model's own computer-use tool for the desktop, together with the
-computer's MCP tools: shell, files, Chrome DevTools, and any MCP servers from the
-computer's definition. It works on its own workspace (`igor-agent`, or
-`--workspace`), so you can watch it in the viewer. It holds a turn for the whole
-run, so the computer doesn't sleep. When it needs you, it asks like any other
-agent.
-
-| Flag | Default |
-| --- | --- |
-| `--model provider:model` | The first provider with an API key: `anthropic:claude-sonnet-5-5`, `openai:gpt-6.1-sol` or `openrouter:anthropic/claude-sonnet-5-5` |
-| `--workspace NAME` | `igor-agent` |
-| `--steps N` | `60` model turns |
+Tool titles and annotations (read-only, destructive and so on) pass through the
+gateway unchanged. MCP clients use them to decide which calls need approval.
 
 ## Computer use in your own app
 
@@ -78,3 +57,6 @@ const mcp = await createMCPClient({
 })
 const tools = [...computerUse.tools, ...await mcp.tools()]
 ```
+
+[examples/tanstack-agent](../examples/tanstack-agent) puts both together into a
+complete agent in about 50 lines.

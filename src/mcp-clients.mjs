@@ -7,7 +7,10 @@ export async function connectStdio({ command, args = [], env, onClose }) {
   const client = await createMCPClient({ transport: stdioTransport({ command, args, ...(env ? { env } : {}) }), onClose, requestOptions: { timeout: 120000 } });
   return {
     async listTools() {
-      return { tools: (await client.tools()).map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) };
+      // Keep the server's title and annotations, which clients use for approvals.
+      return { tools: (await client.tools()).map(({ name, description, inputSchema, metadata }) => ({ name, description, inputSchema,
+        ...(metadata?.mcp?.title && metadata.mcp.title !== name ? { title: metadata.mcp.title } : {}),
+        ...(metadata?.mcp?.annotations ? { annotations: { ...metadata.mcp.annotations } } : {}) })) };
     },
     callTool(request, { timeout = 120000, signal } = {}) {
       const limit = AbortSignal.timeout(timeout);
