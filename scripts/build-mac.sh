@@ -33,7 +33,7 @@ cp .deps/sparkle/LICENSE "$app_dir/Contents/Resources/Sparkle-LICENSE"
 cp macos/Vendor/PermissionFlow-LICENSE "$app_dir/Contents/Resources/"
 python3 - "$app_dir" <<'PLIST'
 import os, plistlib, sys
-info = dict(CFBundleExecutable='IgorComputer', CFBundleIdentifier='ai.igor.computer', CFBundleName='igor.computer',
+info = dict(CFBundlePackageType='APPL', CFBundleInfoDictionaryVersion='6.0', CFBundleExecutable='IgorComputer', CFBundleIdentifier='ai.igor.computer', CFBundleName='igor.computer',
     CFBundleVersion=os.environ.get('IGOR_BUILD_NUMBER', '3'), CFBundleShortVersionString=os.environ['IGOR_VERSION'], LSUIElement=True,
     LSMinimumSystemVersion='13.0', NSAppTransportSecurity=dict(NSAllowsLocalNetworking=True, NSAllowsArbitraryLoadsInWebContent=True))
 feed, key = os.environ.get('IGOR_UPDATE_FEED'), os.environ.get('IGOR_UPDATE_PUBLIC_KEY')
