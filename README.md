@@ -2,9 +2,7 @@
 
 **A real computer for your AI agents, running on your own machine.**
 
-igor.computer gives any AI agent a full Linux computer of its own:
-
-- **Everything a computer has.** A desktop, a shell, files, apps and a real browser.
+- **A full Linux desktop.** A shell, files, apps and a real browser.
 - **It remembers.** Files, tools, running services and logins are still there next time.
 - **You can step in.** When the agent needs a login, a CAPTCHA or a decision, it asks you. You take the mouse, sort it out and hand it back.
 - **Any agent.** It works with anything that speaks [MCP](https://modelcontextprotocol.io): Claude Code, Codex, Cursor, your own agents.
