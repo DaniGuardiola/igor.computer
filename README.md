@@ -48,14 +48,12 @@ its own VM, with only the logins you give it.
 
 ## What you get
 
-| | |
-| --- | --- |
-| 🖥️ **A full Linux computer** | Shell, persistent `/workspace`, desktop apps and any tools you install. |
-| 🌐 **A browser with real logins** | Agents drive it through Chrome DevTools and stay signed in. Chromium ships in the base image and is optional. |
-| 💾 **It remembers** | Files, tools, logins and open windows survive restarts. Idle computers sleep and wake in ~5 s exactly as they were. |
-| 🙋 **You stay in charge** | Watch live, take control any time, type the passwords yourself. One switch pauses all automation. |
-| 🗂️ **Many computers** | One for your assistant, one per team or project, or one per agent, each in its own VM. |
-| 📄 **Defined in a file** | Tools, repos, services, MCP servers and mounts in a `devcontainer.json` you keep in git. |
+- 🖥️ **A full Linux computer.** Shell, persistent `/workspace`, desktop apps and any tools you install.
+- 🌐 **A browser with real logins.** Agents drive it through Chrome DevTools and stay signed in. Chromium ships in the base image and is optional.
+- 💾 **It remembers.** Files, tools, logins and open windows survive restarts. Idle computers sleep and wake in ~5 s exactly as they were.
+- 🙋 **You stay in charge.** Watch live, take control any time, type the passwords yourself. One switch pauses all automation.
+- 🗂️ **Many computers.** One for your assistant, one per team or project, or one per agent, each in its own VM.
+- 📄 **Defined in a file.** Tools, repos, services, MCP servers and mounts in a `devcontainer.json` you keep in git.
 
 **Try asking your agent:**
 
