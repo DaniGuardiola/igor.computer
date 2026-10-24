@@ -1,49 +1,76 @@
-# igor.computer
+<h1 align="center">igor.computer</h1>
 
-**A real computer for your AI agents, running on your own machine.**
+<p align="center">
+  <b>A real computer for your AI agents, running on your own machine.</b>
+</p>
 
-- **A full Linux desktop.** A shell, files, apps and a real browser.
-- **It remembers.** Files, tools, running services and logins are still there next time.
-- **You can step in.** When the agent needs a login, a CAPTCHA or a decision, it asks you. You take the mouse, sort it out and hand it back.
-- **Any agent.** It works with anything that speaks [MCP](https://modelcontextprotocol.io): Claude Code, Codex, Cursor, your own agents.
-- **Described in one file.** Each computer is a `devcontainer.json`, the format developers already use for dev environments.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#make-your-own-computer">Make your own</a> ·
+  <a href="docs/architecture.md">How it works</a> ·
+  <a href="#documentation">Docs</a>
+</p>
+
+---
+
+Give your agent a Linux desktop of its own: a shell, files, apps and a browser
+with real logins. It keeps everything between tasks, any MCP agent can use it,
+and you can watch or take over at any time.
+
+```mermaid
+flowchart LR
+  A["🤖 Your agents<br/>(any MCP client)"] -->|MCP| S
+  Y["🧑 You<br/>(menu-bar app or web viewer)"] -->|watch, take control| S
+  S["igor.computer server<br/>auth · ownership · sleep"] --> V1
+  S --> V2
+  subgraph V1["VM: default"]
+    C1["Desktop · shell · files<br/>apps · browser"]
+  end
+  subgraph V2["VM: acme"]
+    C2["Same, plus team repos,<br/>tools and services"]
+  end
+```
 
 ## Why
 
-Agents get much more useful once they have a computer of their own, but the usual options are poor:
+Agents get much more useful with a computer of their own. The usual options each miss something:
 
-- **Your own machine** gives the agent your whole personal session, files and accounts, so one bad instruction or prompt injection can reach all of it, and you can't keep working while it does.
-- **A throwaway sandbox or headless browser** forgets everything between tasks, can't show a person what it's doing, and many sites block it.
-- **Hosted agent computers** like OpenAI Dots or Grok Bot ([comparison](docs/agent-computers.md)) are tied to one vendor's agent and run in their cloud, so your logins and data live on someone else's servers.
+|  | Your own machine | Throwaway sandbox | Hosted agent computer | **igor.computer** |
+| --- | :---: | :---: | :---: | :---: |
+| Walled off from your files and accounts | ❌ | ✅ | ✅ | ✅ |
+| Remembers between tasks | ✅ | ❌ | ✅ | ✅ |
+| You can watch and step in | ⚠️ you can't work meanwhile | ❌ | ✅ | ✅ |
+| Works with any agent | ✅ | ✅ | ❌ one vendor | ✅ |
+| Logins and data stay on your hardware | ✅ | ✅ | ❌ their cloud | ✅ |
 
-igor.computer is that kind of agent computer, but it runs on your Mac or your
-own server, walled off in its own VM with only the logins you give it. Any agent
-can use it, and it's built from open standards you can change.
+On your own machine, one bad instruction or prompt injection can reach your whole
+session. Hosted computers like OpenAI Dots or Grok Bot ([comparison](docs/agent-computers.md))
+keep your logins on someone else's servers. igor.computer runs each computer in
+its own VM, with only the logins you give it.
 
 ## What you get
 
-- **A full Linux computer.** A shell for commands, a persistent `/workspace` for files, desktop apps the agent operates through their accessibility controls or with mouse and keyboard, and any tools you install.
-- **A browser with real logins.** Agents drive the browser through Chrome DevTools to navigate, read and fill pages, and stay signed in to the sites you've logged in to. The base image ships Chromium; turn it off, or bring any Chrome DevTools browser in your own image.
-- **A computer that remembers.** Files, installed tools, logins and open windows survive restarts. An idle computer sleeps with its memory saved, and wakes in about five seconds exactly as it was, running programs and unsaved text included.
-- **You stay in charge.** Watch any agent live. Take control at any time. Agents ask for help when they need you, and you type the passwords. One switch pauses all automation.
-- **Many computers.** Keep a personal computer for your assistant, one per team or project, or one per agent. Each runs in its own VM with its own logins.
-- **Defined in a file.** Add tools, clone repos, run MCP servers and services, and mount folders in a `devcontainer.json` you can keep in git and share with your team.
-- **Yours.** Everything runs on your hardware. Nothing goes through a hosted service.
+| | |
+| --- | --- |
+| 🖥️ **A full Linux computer** | Shell, persistent `/workspace`, desktop apps and any tools you install. |
+| 🌐 **A browser with real logins** | Agents drive it through Chrome DevTools and stay signed in. Chromium ships in the base image and is optional. |
+| 💾 **It remembers** | Files, tools, logins and open windows survive restarts. Idle computers sleep and wake in ~5 s exactly as they were. |
+| 🙋 **You stay in charge** | Watch live, take control any time, type the passwords yourself. One switch pauses all automation. |
+| 🗂️ **Many computers** | One for your assistant, one per team or project, or one per agent, each in its own VM. |
+| 📄 **Defined in a file** | Tools, repos, services, MCP servers and mounts in a `devcontainer.json` you keep in git. |
 
-## What agents do with it
+**Try asking your agent:**
 
-- **Build and run code.** Clone a repo, install dependencies, run the tests, start a dev server and check the result in the browser, all in one place.
-- **Do long-running work.** Keep services, watchers and background jobs running between tasks; the computer is still there tomorrow.
-- **Use real apps.** Operate desktop applications through their accessibility controls, or with mouse and keyboard when there's nothing better.
-- **Handle files.** Download, convert, generate and organize files in a `/workspace` that persists.
-- **Work on the web as you.** Use sites you've logged in to once, fill in forms, and hand over to you for passwords, payments and CAPTCHAs.
-- **Be your assistant's home.** Give a personal assistant one long-lived computer, with separate desktops for each of its agents.
+> "Clone this repo, run its tests and open the dev server in the browser."
+>
+> "Find this week's invoices on the supplier site and save them as PDFs."
+>
+> "Keep the API server running and check its logs tomorrow."
 
 ## Quick start
 
-You need an Apple Silicon Mac with macOS 13 or later, [Homebrew](https://brew.sh)
-and Xcode command-line tools. There are no signed releases yet, so you build it
-from source:
+You need an Apple Silicon Mac with macOS 13+, [Homebrew](https://brew.sh) and
+Xcode command-line tools. There are no signed releases yet, so build from source:
 
 ```sh
 brew install lima qemu docker docker-buildx
@@ -53,7 +80,7 @@ bash scripts/install-mac.sh --replace --enable-login
 ```
 
 This installs the **igor.computer** menu-bar app and a background server. The
-first start downloads and builds the computer, which takes a few minutes.
+first start builds the computer, which takes a few minutes.
 
 Then connect your agent. For Claude Code:
 
@@ -61,10 +88,11 @@ Then connect your agent. For Claude Code:
 claude mcp add --env IGOR_COMPUTER_WORKSPACE=claude-code igor-computer -- "$HOME/Library/Application Support/igor.computer/server/bin/igor-computer" mcp
 ```
 
-`IGOR_COMPUTER_WORKSPACE` gives the agent its own desktop on the computer, so it
-doesn't get in your way.
+`IGOR_COMPUTER_WORKSPACE` gives the agent its own desktop, so it doesn't get in
+your way. Choose **open computer** in the menu bar to watch it work.
 
-Other MCP clients take the same command in their config:
+<details>
+<summary>Other MCP clients</summary>
 
 ```json
 {
@@ -78,19 +106,21 @@ Other MCP clients take the same command in their config:
 }
 ```
 
-Ask your agent to do something on its computer, like "clone this repo and run
-its tests" or "find this week's invoices on the supplier site and save them as
-PDFs". Choose **open computer** in the menu bar to watch it work.
+</details>
 
 ## Make your own computer
 
 The default computer is a clean Debian desktop with a shell, Python, Git and
-Chromium. To build one with your team's tools, repos and services:
+Chromium. Build one with your team's tools, repos and services:
 
 ```sh
 igor-computer init ~/code/acme          # writes .igor-computer/devcontainer.json
 igor-computer create acme ~/code/acme   # a folder or a git URL
+igor-computer mcp acme                  # point an agent at it
 ```
+
+<details>
+<summary>Example <code>devcontainer.json</code></summary>
 
 ```jsonc
 {
@@ -108,44 +138,29 @@ igor-computer create acme ~/code/acme   # a folder or a git URL
 }
 ```
 
-Point an agent at it with `igor-computer mcp acme`. Definitions also support
-your own Dockerfile, [dev container features](https://containers.dev/features),
+</details>
+
+Definitions also support your own Dockerfile, [dev container features](https://containers.dev/features),
 host folder mounts and raw VM settings. See [Computers](docs/computers.md) and
-the working [team example](examples/team/.igor-computer/devcontainer.json).
+the [team example](examples/team/.igor-computer/devcontainer.json).
 
-## How it works
-
-```mermaid
-flowchart LR
-  A["Your agents<br/>(any MCP client)"] -->|MCP| S
-  Y["You<br/>(menu-bar app or web viewer)"] -->|watch, take control| S
-  S["igor.computer server<br/>auth · ownership · sleep"] --> V1
-  S --> V2
-  subgraph V1["VM: default"]
-    C1["Desktop · shell · files<br/>apps · browser"]
-  end
-  subgraph V2["VM: acme"]
-    C2["Same, plus team repos,<br/>tools and services"]
-  end
-```
+## Built on open parts
 
 igor.computer is a thin layer over existing tools, and you can swap out any part of it:
 
 | Layer | What it does | Built on |
 | --- | --- | --- |
-| **Hardware** | Runs each computer as a VM, sleeps and wakes it, serves agents and viewers, and decides who controls the desktop. | [Lima](https://lima-vm.io), [QEMU](https://www.qemu.org), [MCP](https://modelcontextprotocol.io), [noVNC](https://novnc.com) |
-| **OS** | Everything inside: any container image that meets a small [OS contract](docs/computers.md#the-os-contract) for control, display, browsers and tools. The base image is Debian with a desktop (Xvfb, Openbox), a shell, Python, Git and Chromium. | Docker / OCI, [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) |
+| **Hardware** | Runs each computer as a VM, sleeps and wakes it, serves agents and viewers, decides who controls the desktop. | [Lima](https://lima-vm.io), [QEMU](https://www.qemu.org), [MCP](https://modelcontextprotocol.io), [noVNC](https://novnc.com) |
+| **OS** | Any container image that meets a small [OS contract](docs/computers.md#the-os-contract). The base image is Debian with a desktop, a shell, Python, Git and Chromium. | Docker / OCI, [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) |
 | **Definition** | Your computer's packages, repos, services, MCP servers, mounts and secrets. | [devcontainer.json](https://containers.dev) |
-
-More detail is in [How it works](docs/architecture.md).
 
 ## Status
 
-igor.computer is early and used daily by its author.
+Early, and used daily by its author.
 
-- macOS on Apple Silicon is the tested setup.
-- Linux hosts are implemented but not yet validated on real hardware.
-- There are no signed releases or auto-updates yet.
+- ✅ macOS on Apple Silicon is the tested setup.
+- 🚧 Linux hosts are implemented but not yet validated on real hardware.
+- 🚧 No signed releases or auto-updates yet.
 
 It started as the computer for [Igor](docs/igor.md), a personal AI assistant,
 but it doesn't depend on Igor.
