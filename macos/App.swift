@@ -348,6 +348,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if let updater = updater {
             let update = menu.addItem(withTitle: "check for updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
             update.target = updater
+            if let gate = updateGate {
+                let submenu = NSMenu()
+                for name in UpdateGate.channels {
+                    let choice = submenu.addItem(withTitle: name, action: #selector(UpdateGate.selectChannel(_:)), keyEquivalent: "")
+                    choice.representedObject = name
+                    choice.state = name == gate.channel ? .on : .off
+                    choice.target = gate
+                }
+                menu.addItem(withTitle: "update channel", action: nil, keyEquivalent: "").submenu = submenu
+            }
         }
         menu.addItem(.separator())
         menu.addItem(withTitle: "server…", action: #selector(configureServer), keyEquivalent: "")

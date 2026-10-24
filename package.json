@@ -15,7 +15,9 @@
     "vm:boot": "bash scripts/start-vm.sh",
     "test:vm": "node tests/vm-live.mjs",
     "test:desktop": "node tests/desktop-live.mjs",
-    "cli": "node src/cli.mjs"
+    "cli": "node src/cli.mjs",
+    "changeset": "changeset",
+    "release:version": "changeset version && npm install --package-lock-only --ignore-scripts --offline"
   },
   "dependencies": {
     "@devcontainers/cli": "0.89.0",
@@ -30,6 +32,7 @@
     "igor-computer": "src/cli.mjs"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@modelcontextprotocol/sdk": "1.32.2"
   },
   "exports": {

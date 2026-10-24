@@ -69,40 +69,55 @@ desktop tool schemas from the pinned computer-use-linux build.
 
 ## Releases
 
-Pushing a `vX.Y.Z` tag runs [the release workflow](../.github/workflows/release.yml)
-on GitHub Actions. It tests, then builds the app, signs every Mach-O inside it
-(the app, bundled Node, Sparkle) with Developer ID and the hardened runtime,
-notarizes and staples the app and DMG, and publishes a GitHub release with:
+Releases go through [Changesets](https://github.com/changesets/changesets) and
+GitHub Actions, the same flow as extend.computer's:
 
-- `igor.computer-X.Y.Z-arm64.dmg`, plus `igor.computer-arm64.dmg`, a copy with
-  a fixed name for the permanent `releases/latest/download/` link.
-- `appcast.xml`, the signed [Sparkle](https://sparkle-project.org) feed.
-- `SHA256SUMS`.
+1. With a user-visible change, run `npm run changeset`, pick a bump and describe
+   it. Commit the generated file with the change. Docs and test-only changes can
+   skip it.
+2. On main, [the version workflow](../.github/workflows/version.yml) turns
+   pending changesets into a release PR that bumps `package.json` and writes
+   `CHANGELOG.md`.
+3. Merging that PR runs [the release workflow](../.github/workflows/release.yml).
+   It tests, then builds the app, signs every Mach-O inside it (the app, bundled
+   Node, Sparkle) with Developer ID and the hardened runtime, notarizes and
+   staples the app and DMG, and publishes release `vX.Y.Z` with the DMG,
+   `SHA256SUMS` and the changelog section as notes. Stable releases also get
+   `igor.computer-arm64.dmg`, a fixed-name copy for the permanent
+   `releases/latest/download/` link. Then it publishes the signed
+   [Sparkle](https://sparkle-project.org) feed.
 
-The pipeline is adapted from extend.computer's and uses the same Apple
-credentials.
+Don't edit the version by hand. A published release is never replaced: to fix
+one, release a new version. If only the feed step failed, re-run the workflow;
+it reuses the published DMG. `CFBundleVersion` is the workflow's run number,
+which only grows; don't recreate the workflow or installed apps stop seeing
+updates.
 
-### Cutting a release
+### Channels
+
+Stable, beta, alpha and canary. The channel comes from the version: `0.3.0` is
+stable, `0.3.0-beta.0` is beta. For a preview, enter prerelease mode first and
+release as usual; exit it to graduate:
 
 ```sh
-npm version patch   # or minor / major: bumps package.json, commits, tags vX.Y.Z
-git push --follow-tags
+npm run changeset -- pre enter beta   # or alpha, canary; commit .changeset/pre.json
+npm run changeset -- pre exit         # back to stable
 ```
 
-The tag must match `package.json`. Release notes are the commit subjects since
-the previous tag. A published release is never replaced: to fix one, tag a new
-version. `CFBundleVersion` is the workflow's run number, which only grows; don't
-recreate the workflow or installed apps stop seeing updates.
+Previews are GitHub prereleases and never become latest.
 
 ### Updates
 
-Release builds check
-`https://github.com/DaniGuardiola/igor.computer/releases/latest/download/appcast.xml`
-(set the repository variable `UPDATE_FEED` before the first release to use
-another HTTPS URL). Each release starts from the previous feed, adds its entry
-and re-signs it, so the feed and the DMG it points at are published together.
-Sparkle requires the feed and the DMG to be signed with the update key, and
-"check for updates…" appears in the menu.
+There's one signed feed for every channel, on the `updates` branch served by
+GitHub Pages at
+`https://daniguardiola.github.io/igor.computer/updates/macos/appcast.xml` (set
+the repository variable `UPDATE_FEED` before the first release to use another
+HTTPS URL). Preview entries carry a Sparkle channel. In the app,
+"update channel" in the menu picks one; it starts as the channel the build was
+released on. Each channel also gets everything more stable than it (beta gets
+stable releases too), and Sparkle never offers a lower build, so going back to
+stable waits for a newer stable release. Earlier entries stay in the feed for
+older systems.
 
 The server is bundled in the app, so one update covers both. Before relaunching
 into an update, the app waits while any computer has a human in control, an
@@ -111,8 +126,8 @@ the server if its version or build is newer. If a computer became busy anyway,
 the running server is kept and the update is retried on the next launch.
 Computers and their data are untouched.
 
-While the repository is private, release downloads and the feed return 404
-to the app, so updates only start working once it's public.
+While the repository is private, release downloads return 404 to the app, so
+updates only start working once it's public.
 
 ### One-time setup
 
@@ -131,7 +146,10 @@ to the app, so updates only start working once it's public.
    The key stays in the login Keychain. Upload the exported file, back it up
    somewhere safe, then delete it. Losing the key means installed apps can't
    update.
-3. A GitHub environment named `release` with these secrets:
+3. In the repository settings, allow GitHub Actions to create pull requests,
+   and after the first release, set Pages to deploy from branch `updates`,
+   root.
+4. A GitHub environment named `release` with these secrets:
 
 | Secret | Value |
 | --- | --- |

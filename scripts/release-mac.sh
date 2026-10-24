@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root="$PWD"
-for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_API_KEY_ID APPLE_API_ISSUER APPLE_API_KEY SPARKLE_PUBLIC_KEY RELEASE_BUILD RELEASE_REPOSITORY; do
+for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_API_KEY_ID APPLE_API_ISSUER APPLE_API_KEY SPARKLE_PUBLIC_KEY RELEASE_BUILD RELEASE_CHANNEL RELEASE_REPOSITORY; do
   [[ -n ${!name:-} ]] || { echo "Missing release setting: $name" >&2; exit 1; }
 done
 temporary=$(mktemp -d)
@@ -46,8 +46,9 @@ if len(matches) != 1: raise SystemExit('Expected exactly one Developer ID Applic
 print(matches[0])
 PY
 )
-feed=${UPDATE_FEED:-https://github.com/$RELEASE_REPOSITORY/releases/latest/download/appcast.xml}
-IGOR_SIGN_IDENTITY="$identity" IGOR_BUILD_NUMBER="$RELEASE_BUILD" IGOR_UPDATE_FEED="$feed" IGOR_UPDATE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY" \
+owner=${RELEASE_REPOSITORY%%/*}
+feed=${UPDATE_FEED:-https://$(printf '%s' "$owner" | tr '[:upper:]' '[:lower:]').github.io/${RELEASE_REPOSITORY#*/}/updates/macos/appcast.xml}
+IGOR_SIGN_IDENTITY="$identity" IGOR_BUILD_NUMBER="$RELEASE_BUILD" IGOR_UPDATE_CHANNEL="$RELEASE_CHANNEL" IGOR_UPDATE_FEED="$feed" IGOR_UPDATE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY" \
   bash scripts/build-mac.sh
 app="$root/build/igor.computer.app"
 codesign --verify --deep --strict "$app"
@@ -79,3 +80,8 @@ notarize "$dmg" "$root/release-output/dmg-notarization.json"
 xcrun stapler staple "$dmg"
 xcrun stapler validate "$dmg"
 (cd release-output && shasum -a 256 "$(basename "$dmg")" > SHA256SUMS)
+python3 - "$version" <<'PY'
+import json, os, sys
+metadata = {'version': sys.argv[1], 'build': int(os.environ['RELEASE_BUILD']), 'channel': os.environ['RELEASE_CHANNEL'], 'commit': os.environ.get('GITHUB_SHA', '')}
+open('release-output/release-metadata.json', 'w').write(json.dumps(metadata) + '\n')
+PY

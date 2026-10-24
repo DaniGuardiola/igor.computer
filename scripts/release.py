@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release checks, notes and the signed Sparkle feed. Adapted from extend.computer's scripts/release.py."""
+"""Release checks, channels, notes and the signed Sparkle feed. Adapted from extend.computer's scripts/release.py."""
 import argparse
 import base64
 import html
@@ -11,6 +11,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
+CHANNELS = ('stable', 'beta', 'alpha', 'canary')
 SPARKLE = 'http://www.andymatuschak.org/xml-namespaces/sparkle'
 SIGN_UPDATE = ROOT / '.deps/sparkle/bin/sign_update'
 ET.register_namespace('sparkle', SPARKLE)
@@ -18,18 +19,54 @@ ET.register_namespace('sparkle', SPARKLE)
 def version():
     return json.loads((ROOT / 'package.json').read_text())['version']
 
-def check(tag):
-    if not re.fullmatch(r'\d+\.\d+\.\d+', version()):
-        raise SystemExit('package.json needs a plain x.y.z version for a stable release.')
-    if tag != f'v{version()}':
-        raise SystemExit(f'Tag {tag} does not match package.json version {version()}.')
+def pending_changesets():
+    directory = ROOT / '.changeset'
+    state_path = directory / 'pre.json'
+    state = json.loads(state_path.read_text()) if state_path.exists() else {}
+    consumed = set(state.get('changesets', [])) if state.get('mode') == 'pre' else set()
+    # Changesets 3 archives consumed preview notes under .changeset/pre. Exiting
+    # preview mode must still create a graduation PR even with no new notes.
+    if state.get('mode') == 'exit' and any((directory / 'pre').glob('*.md')):
+        return True
+    return any(path.name != 'README.md' and path.stem not in consumed for path in directory.glob('*.md'))
 
-def notes(tag):
-    # Commit subjects since the previous tag; plain text, so the feed has no remote content.
-    previous = subprocess.run(['git', 'describe', '--tags', '--abbrev=0', f'{tag}^'], cwd=ROOT, capture_output=True, text=True)
-    span = f'{previous.stdout.strip()}..{tag}' if previous.returncode == 0 else tag
-    subjects = subprocess.check_output(['git', 'log', '--no-merges', '--format=%s', span], cwd=ROOT, text=True).splitlines()
-    return [subject for subject in subjects if subject.strip()][:40]
+def check():
+    lock = json.loads((ROOT / 'package-lock.json').read_text())
+    if lock['packages']['']['version'] != version():
+        raise SystemExit('package-lock.json version does not match package.json.')
+    notes()
+
+def notes():
+    path = ROOT / 'CHANGELOG.md'
+    text = path.read_text() if path.exists() else ''
+    match = re.search(r'^## ' + re.escape(version()) + r'\s*\n(.*?)(?=^## |\Z)', text, re.M | re.S)
+    if not match:
+        raise SystemExit(f'CHANGELOG.md has no {version()} section. Release through a Changesets release PR.')
+    return match.group(1).strip()
+
+def render(markdown):
+    # Escaped headings and bullets only: Sparkle shows this HTML, so it carries no remote content.
+    lines, items = [], []
+    def flush():
+        if items: lines.append('<ul>' + ''.join(f'<li>{html.escape(item)}</li>' for item in items) + '</ul>'); items.clear()
+    for line in markdown.splitlines():
+        if line.startswith('#'): flush(); lines.append(f'<h3>{html.escape(line.lstrip("#").strip())}</h3>')
+        elif line.startswith('- '): items.append(line[2:].strip())
+        elif line.strip() and items: items[-1] += ' ' + line.strip()
+        elif line.strip(): flush(); lines.append(f'<p>{html.escape(line.strip())}</p>')
+    flush()
+    return ''.join(lines)
+
+def channel_of(value):
+    return value.split('-', 1)[1].split('.', 1)[0] if '-' in value else 'stable'
+
+def validate_channel(channel, value):
+    if channel not in CHANNELS:
+        raise SystemExit('Unknown channel.')
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', value):
+        raise SystemExit('Invalid release version.')
+    if channel != channel_of(value):
+        raise SystemExit(f'{value} is not a {channel} version. Use changeset pre enter/exit to change channels.')
 
 def validate_signing_keys(private_key, public_key):
     seed = base64.b64decode(private_key.strip(), validate=True)
@@ -44,11 +81,18 @@ def sign(path, key):
     # sign_update reads the private key from stdin, never a command argument.
     return subprocess.run([str(SIGN_UPDATE), '--ed-key-file', '-', str(path)], input=key, text=True, capture_output=True, check=True).stdout
 
-def appcast(build, archive, feed, tag):
+def feed_contains(feed, build):
+    return feed.exists() and any(item.findtext(f'{{{SPARKLE}}}version') == str(build) for item in ET.parse(feed).iter('item'))
+
+def appcast(build, archive, feed):
+    channel = channel_of(version())
     key = os.environ['SPARKLE_PRIVATE_KEY']
     validate_signing_keys(key, os.environ['SPARKLE_PUBLIC_KEY'])
-    repository = os.environ['RELEASE_REPOSITORY']
-    # Keep earlier entries so Macs on older systems can still find their newest compatible build.
+    metadata = json.loads((archive.parent / 'release-metadata.json').read_text())
+    if metadata.get('version') != version() or metadata.get('build') != build:
+        raise SystemExit('Release metadata does not match this version and build.')
+    subprocess.run(['shasum', '-a', '256', '-c', 'SHA256SUMS'], cwd=archive.parent, stdout=subprocess.DEVNULL, check=True)
+    # One feed for all channels; earlier entries stay so older systems still find a compatible build.
     tree = ET.parse(feed) if feed.exists() else ET.ElementTree(ET.Element('rss', {'version': '2.0'}))
     stream = tree.getroot().find('channel')
     if stream is None:
@@ -62,31 +106,39 @@ def appcast(build, archive, feed, tag):
     ET.SubElement(item, f'{{{SPARKLE}}}version').text = str(build)
     ET.SubElement(item, f'{{{SPARKLE}}}shortVersionString').text = version()
     ET.SubElement(item, f'{{{SPARKLE}}}minimumSystemVersion').text = '13.0'
-    ET.SubElement(item, 'description').text = '<ul>' + ''.join(f'<li>{html.escape(line)}</li>' for line in notes(tag)) + '</ul>'
+    if channel != 'stable': ET.SubElement(item, f'{{{SPARKLE}}}channel').text = channel
+    ET.SubElement(item, 'description').text = render(notes())
     signature = re.search(r'sparkle:edSignature="([^"]+)"', sign(archive, key))
     if not signature: raise SystemExit('Sparkle returned no archive signature.')
     ET.SubElement(item, 'enclosure', {
-        'url': f'https://github.com/{repository}/releases/download/{tag}/{archive.name}',
+        'url': f'https://github.com/{os.environ["RELEASE_REPOSITORY"]}/releases/download/v{version()}/{archive.name}',
         'length': str(archive.stat().st_size), 'type': 'application/octet-stream',
         f'{{{SPARKLE}}}edSignature': signature[1],
     })
     stream.insert(1, item)
+    feed.parent.mkdir(parents=True, exist_ok=True)
     tree.write(feed, encoding='utf-8', xml_declaration=True)
     # The feed signature is embedded in the XML; never edit the feed after this.
     sign(feed, key)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('check', 'notes', 'appcast'))
-    parser.add_argument('--tag', required=True)
+    parser.add_argument('action', choices=('check', 'channel', 'pending', 'notes', 'appcast', 'feed-contains'))
+    parser.add_argument('--channel', choices=(*CHANNELS, 'auto'), default='auto')
     parser.add_argument('--build', type=int)
     parser.add_argument('--archive', type=Path)
-    parser.add_argument('--feed', type=Path, default=ROOT / 'release-output/appcast.xml')
+    parser.add_argument('--feed', type=Path, default=ROOT / 'release-output/updates/macos/appcast.xml')
     args = parser.parse_args()
-    if args.action == 'check': check(args.tag)
-    elif args.action == 'notes': print('\n'.join(f'- {line}' for line in notes(args.tag)))
+    if args.action == 'check': check()
+    elif args.action == 'channel':
+        chosen = channel_of(version()) if args.channel == 'auto' else args.channel
+        validate_channel(chosen, version())
+        print(chosen)
+    elif args.action == 'pending': print('true' if pending_changesets() else 'false')
+    elif args.action == 'notes': print(notes())
+    elif args.action == 'feed-contains': raise SystemExit(0 if feed_contains(args.feed, args.build) else 1)
     else:
         if not args.build or args.build < 1 or not args.archive: parser.error('--build and --archive required')
-        appcast(args.build, args.archive.resolve(), args.feed, args.tag)
+        appcast(args.build, args.archive.resolve(), args.feed)
 
 if __name__ == '__main__': main()

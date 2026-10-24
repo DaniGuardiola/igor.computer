@@ -1,45 +1,98 @@
 name: Release macOS app
-# Push a vX.Y.Z tag matching package.json (npm version patch && git push --follow-tags).
+# Runs when a merged release PR changes the version in package.json.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: ["package.json"]
+  workflow_dispatch:
 permissions:
   contents: write
+  pages: write
 concurrency:
   group: release
   cancel-in-progress: false
 jobs:
+  version:
+    name: Check for a version change
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compare versions
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          current = json.load(open('package.json'))['version']
+          before = os.environ.get('BEFORE_SHA', '')
+          changed = True
+          if os.environ['EVENT_NAME'] == 'push' and before and set(before) != {'0'}:
+              changed = current != json.loads(subprocess.check_output(['git', 'show', before + ':package.json']))['version']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'changed={str(changed).lower()}\n')
+          PY
   release:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
     runs-on: macos-15
     timeout-minutes: 45
     environment: release
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_REPOSITORY: ${{ github.repository }}
-      RELEASE_TAG: ${{ github.ref_name }}
-      RELEASE_BUILD: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-          persist-credentials: false
-      - name: Check the tag
+      - name: Decide whether this version is ready
+        id: release
         run: |
-          python3 scripts/release.py check --tag "$RELEASE_TAG"
-          if gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" >/dev/null 2>&1; then
-            echo "$RELEASE_TAG is already released. Published releases are immutable: tag a new version." >&2
-            exit 1
+          [[ $GITHUB_REF == refs/heads/main ]] || { echo 'Releases run from main.' >&2; exit 1; }
+          python3 scripts/release.py check
+          version=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "RELEASE_CHANNEL=$(python3 scripts/release.py channel)" >> "$GITHUB_ENV"
+          echo "build=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          # Changesets still pending means the release PR hasn't been merged yet.
+          if [[ $(python3 scripts/release.py pending) == true ]]; then echo 'ready=false' >> "$GITHUB_OUTPUT"; exit 0; fi
+          mkdir -p release-output/updates/macos
+          if git ls-remote --exit-code --heads origin updates >/dev/null; then
+            git fetch -q origin updates
+            git show FETCH_HEAD:updates/macos/appcast.xml > release-output/updates/macos/appcast.xml 2>/dev/null || rm -f release-output/updates/macos/appcast.xml
           fi
+          # A published release is reused as is: only its feed entry may still be missing.
+          if gh release view "v$version" --repo "$RELEASE_REPOSITORY" >/dev/null 2>&1; then
+            gh release download "v$version" --repo "$RELEASE_REPOSITORY" --pattern release-metadata.json --pattern '*.dmg' --pattern SHA256SUMS --dir release-output
+            build=$(python3 -c 'import json; print(json.load(open("release-output/release-metadata.json"))["build"])')
+            echo "build=$build" >> "$GITHUB_OUTPUT"
+            echo 'repair=true' >> "$GITHUB_OUTPUT"
+            if python3 scripts/release.py feed-contains --build "$build"; then echo 'ready=false' >> "$GITHUB_OUTPUT"; exit 0; fi
+          fi
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.release.outputs.ready == 'true'
         with:
           node-version: 24.21.0
           cache: npm
       - name: Install dependencies and test
+        if: steps.release.outputs.ready == 'true'
         run: |
           npm ci
           npm test
           npm run test:mac
+          bash scripts/fetch-sparkle.sh
       - name: Build, sign and notarize
+        if: steps.release.outputs.ready == 'true' && steps.release.outputs.repair != 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -50,31 +103,23 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
           UPDATE_FEED: ${{ vars.UPDATE_FEED }}
+          RELEASE_BUILD: ${{ steps.release.outputs.build }}
         run: bash scripts/release-mac.sh
       - name: Keep notarization receipts
-        if: always()
+        if: always() && steps.release.outputs.ready == 'true' && steps.release.outputs.repair != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: notarization-${{ github.run_id }}
           path: release-output/*notarization*.json*
           if-no-files-found: ignore
       - name: Sign the update feed
+        if: steps.release.outputs.ready == 'true'
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
         run: |
-          # Start from the latest release's feed so older entries are kept.
-          gh release download --repo "$RELEASE_REPOSITORY" --pattern appcast.xml --dir release-output 2>/dev/null || true
-          version=$(node -p "require('./package.json').version")
-          python3 scripts/release.py appcast --tag "$RELEASE_TAG" --build "$RELEASE_BUILD" --archive "release-output/igor.computer-$version-arm64.dmg"
-          python3 scripts/release.py notes --tag "$RELEASE_TAG" > release-output/notes.md
-      - name: Publish the release
-        run: |
-          # The feed ships in the same release as its DMG, so it never points at a missing download.
-          # A fixed-name copy gives a permanent releases/latest/download link.
-          version=$(node -p "require('./package.json').version")
-          cp "release-output/igor.computer-$version-arm64.dmg" release-output/igor.computer-arm64.dmg
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --latest \
-            --title "igor.computer $version" --notes-file release-output/notes.md \
-            "release-output/igor.computer-$version-arm64.dmg" release-output/igor.computer-arm64.dmg \
-            release-output/appcast.xml release-output/SHA256SUMS
+          python3 scripts/release.py appcast --build "${{ steps.release.outputs.build }}" --archive "release-output/igor.computer-$RELEASE_VERSION-arm64.dmg"
+          python3 scripts/release.py notes > release-output/notes.md
+      - name: Publish the release, then the feed
+        if: steps.release.outputs.ready == 'true'
+        run: bash scripts/publish-release.sh

@@ -41,7 +41,7 @@ if bool(feed) != bool(key): raise SystemExit('Set both IGOR_UPDATE_FEED and IGOR
 if feed:
     if not feed.startswith('https://'): raise SystemExit('Update feed must use HTTPS.')
     # Signed feed, verified archives, no profiling and no scripts in release notes.
-    info.update(SUFeedURL=feed, SUPublicEDKey=key, SUEnableAutomaticChecks=True, SURequireSignedFeed=True,
+    info.update(IgorUpdateChannel=os.environ.get('IGOR_UPDATE_CHANNEL', 'stable'), SUFeedURL=feed, SUPublicEDKey=key, SUEnableAutomaticChecks=True, SURequireSignedFeed=True,
         SUSignedFeedFailureExpirationInterval=0, SUVerifyUpdateBeforeExtraction=True, SUEnableSystemProfiling=False, SUEnableJavaScript=False)
 with open(sys.argv[1] + '/Contents/Info.plist', 'wb') as f: plistlib.dump(info, f)
 PLIST

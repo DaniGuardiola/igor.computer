@@ -1,0 +1,36 @@
+name: Prepare release
+# Pending changesets on main become a release PR; merging it publishes the release.
+on:
+  push:
+    branches: [main]
+    paths: [".changeset/**", "package.json", ".github/workflows/version.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: version
+  cancel-in-progress: false
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Check for pending changesets
+        id: pending
+        run: echo "ready=$(python3 scripts/release.py pending)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.pending.outputs.ready == 'true'
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - run: npm ci
+        if: steps.pending.outputs.ready == 'true'
+      - name: Create or update the release PR
+        if: steps.pending.outputs.ready == 'true'
+        run: bash scripts/prepare-release-pr.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
