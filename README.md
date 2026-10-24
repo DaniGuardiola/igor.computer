@@ -64,6 +64,25 @@ administrator must enable lingering for that service user with
 `loginctl enable-linger USER`. Linux deployment is implemented but has not yet
 been exercised on a real Linux/KVM host. macOS is the validated deployment.
 
+## Computers
+
+The installer puts a CLI at `…/igor.computer/server/bin/igor-computer`
+(symlink it into your PATH). A `default` computer always exists; create more
+from a folder or git repo holding a devcontainer.json:
+
+```sh
+igor-computer init ~/code/acme            # starter .igor-computer/devcontainer.json
+igor-computer create team ~/code/acme     # or a git URL, with --path and --ref
+igor-computer ls                          # status of every computer
+igor-computer rebuild team                # apply definition changes
+igor-computer rm team                     # delete its VM, logins and /workspace
+```
+
+Each computer is its own VM with its own sleep, browser profile and
+`/workspace`. Definitions, the OS contract and limits are in
+[docs/computers.md](docs/computers.md); [examples/team](examples/team) is a
+working example.
+
 ## Connect
 
 For local stdio MCP, configure your client with absolute installed paths:
@@ -90,8 +109,11 @@ The default workspace is `shared`; use a distinct workspace name per agent for
 independent DevTools selection state.
 
 The macOS menu's **server…** action accepts an HTTPS origin and credential file
-for the same server on another host. The web viewer is at `/viewer`. It accepts
-a credential through its connection form; it does not need a native app.
+for the same server on another host. With more than one computer, its
+**computers** menu switches between them, and help requests from any computer
+notify you. The web viewer is at `/viewer`, or `/computers/NAME/viewer` for a
+named computer. It accepts a credential through its connection form; it does
+not need a native app.
 
 By default the server binds only `127.0.0.1:18420`. To publish it through your
 own TLS reverse proxy, create `server.json` in the state directory:
@@ -125,7 +147,8 @@ accessibility trees/selectors and independent client snapshot indices. Setup too
 on what the application exports. Chromium's built-in accessibility is enabled;
 there is one browser process/profile and no separate per-agent login.
 
-Normal Chrome DevTools MCP tools remain available, alongside:
+Chrome DevTools MCP tools are available on computers with a browser (the
+default), alongside:
 
 | Tool | Purpose |
 | --- | --- |
@@ -140,6 +163,7 @@ Normal Chrome DevTools MCP tools remain available, alongside:
 | `computer_sleep`, `computer_wake` | Save/stop and restore RAM plus disk. |
 | `browser_status` | Ownership, lifecycle, active turn IDs and human help. |
 | `browser_request_human`, `browser_wait_human` | Request help in the same workspace and wait for explicit takeover. |
+| `SERVER__TOOL` | Tools from MCP servers that the computer's definition runs inside it, behind the same gate. |
 
 Desktop actions serialize through one ownership gate. Pixel actions select the
 calling client's workspace within that gate. Workspaces organize windows;
@@ -201,9 +225,10 @@ The VM's writable disk stores its container, profile, home and workspace volumes
 User-installed tools under `/home/browser`, including Python virtual environments,
 survive browser/container replacement. Files belong in `/workspace`. The guest
 container's root filesystem survives ordinary VM stop/sleep, but image upgrades
-replace it; put custom system packages in the image recipe and rebuild it.
+replace it; put system packages in the computer's definition and run
+`igor-computer rebuild NAME`. Rebuilds keep the profile, home and workspace volumes.
 
-After five idle minutes, the server snapshots RAM and disk, then force-stops
+After five idle minutes (the definition's `idleSleep` changes this), the server snapshots RAM and disk, then force-stops
 QEMU without shutting down the saved guest. It never sleeps during an active
 turn, command, pending help or human takeover. Status polling does not wake it.
 The next computer tool wakes it before acting.
@@ -238,7 +263,7 @@ node tests/server-recovery.mjs
 The live checks cover real stdio and HTTP MCP, shared cookies with independent
 agent page selection, shell/files, workspace windows, screenshot/input, the human
 gate, RAM/form restoration, authenticated display proxy, server restart recovery
-and last-window recovery. Run them while the computer
+and last-window recovery. They target the default computer. Run them while it
 is available for verification; they create only test pages/files.
 
 macOS snapshot save/stop and wake measured roughly 2s and 6s in these checks;
@@ -246,7 +271,8 @@ these are observations, not general performance guarantees. Linux/KVM deployment
 production TLS deployment, password-manager desktop integration, Touch ID,
 passkeys and site-specific CAPTCHA behavior still require host/site validation.
 
-The VM has no host directory mounts or SSH-agent forwarding. Chromium remains
+By default the VM has no host directory mounts or SSH-agent forwarding; a
+definition's bind `mounts` add host shares explicitly. Chromium remains
 stock and sandboxed. Raw CDP/VNC bind to host loopback and are trusted-host
 implementation endpoints. The display proxy also authenticates guest-side
 connections, preventing browser pages from taking over via guest localhost.
@@ -257,7 +283,7 @@ x11vnc and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtoo
 
 ### Viewer workspaces
 
-The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_COMPUTER_WORKSPACE_LABEL`. Create extra named workspaces from the picker. The taskbar’s browser icon opens or focuses a browser in the selected workspace. Closing every window leaves the desktop empty; browser commands lazily reopen a window in the caller’s own workspace. Desktop and shell tools do not launch a browser. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.
+The native and web viewers have a workspace picker. `user` is the independent default desktop (the original `shared` workspace), with no agent owner. Igor agent workspaces display their agent names; generic MCP clients can provide `IGOR_COMPUTER_WORKSPACE_LABEL`. The taskbar’s browser icon opens or focuses a browser in the selected workspace. Closing every window leaves the desktop empty; browser commands lazily reopen a window in the caller’s own workspace. Desktop and shell tools do not launch a browser. The window strip shows all managed applications on the selected desktop, and restore stays on that desktop. Workspaces share one OS and Chromium profile.
 
 
 To verify the installed desktop backend, finish human control and run
