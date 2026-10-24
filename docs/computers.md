@@ -1,8 +1,18 @@
 # Computers
 
-igor.computer is split into three layers. Each layer is a thin layer of glue
-over an existing standard, and you can replace any layer as long as you keep its
-contract.
+A **computer** is a desktop in its own VM, with its own browser logins, files
+and sleep. You can have as many as you like: a personal one for your assistant,
+one per team with its repos and tools preinstalled, one per agent that needs
+separate accounts.
+
+Every computer is described by a `devcontainer.json` (or by nothing at all, for
+the plain base computer). This page covers creating computers, writing
+definitions, and the OS contract for building your own OS from scratch.
+
+## Three layers
+
+igor.computer is a thin layer of glue over existing standards. You can replace
+any layer as long as you keep its contract.
 
 | Layer | What it is | Standard underneath |
 | --- | --- | --- |
@@ -10,16 +20,14 @@ contract.
 | **OS** | A container image that meets the **OS contract**. The base image is the reference OS. | OCI images, Docker |
 | **Definition** | How you cook your own OS: tools, repos, MCP servers, services, mounts, secrets. | devcontainer.json |
 
-Each **computer** is one Lima VM running one container from its OS image. Computers
-are fully separate: separate RAM sleep, separate browser profiles and logins,
-separate `/workspace`. Within one computer, agents get **workspaces** (desktops)
-that share the browser profile.
+Within one computer, agents get **workspaces** (desktops) that share the browser
+profile. Across computers, nothing is shared.
 
 ```text
-host ──► igor.computer server :18420
-           ├─ /…                   default computer   (VM igor-computer-default)
-           ├─ /computers/team/…    team computer      (VM igor-computer-team)
-           └─ /computers/<name>/…
+igor.computer server :18420
+  ├─ /…                   default computer   (VM igor-computer-default)
+  ├─ /computers/acme/…    acme computer      (VM igor-computer-acme)
+  └─ /computers/<name>/…
 ```
 
 ## Quick start
@@ -30,6 +38,22 @@ igor-computer create team ~/code/acme     # or a git URL: igor-computer create t
 igor-computer wake team                   # builds and boots (first time takes a few minutes)
 igor-computer ls
 ```
+
+The CLI is installed at `…/igor.computer/server/bin/igor-computer`:
+
+| Command | What it does |
+| --- | --- |
+| `igor-computer ls` | List computers and their state. |
+| `igor-computer init [folder]` | Write a starter `.igor-computer/devcontainer.json`. |
+| `igor-computer check [path]` | Validate a definition and show how it's read. |
+| `igor-computer create NAME [source] [--path dir] [--ref ref]` | Create a computer from a folder, a file or a git URL. It builds on first use. |
+| `igor-computer wake NAME`, `sleep NAME` | Start it, or save its memory and stop it. |
+| `igor-computer rebuild NAME` | Apply definition changes. Logins and files are kept. |
+| `igor-computer update NAME` | Pull a git-sourced definition (then rebuild). |
+| `igor-computer status [NAME]` | Detailed status. |
+| `igor-computer viewer [NAME]` | Print the viewer URL. |
+| `igor-computer mcp [NAME]` | Run the stdio MCP bridge for agents. |
+| `igor-computer rm NAME` | Delete the computer, its VM, logins and files. Asks first. |
 
 Connect an agent to it:
 

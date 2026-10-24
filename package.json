@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "A persistent computer for agents: a VM \"hardware\" layer, a small OS contract, and devcontainer-based definitions.",
+  "description": "A real, persistent computer for AI agents, on your own machine: a Linux desktop and browser that agents drive over MCP and you can step into.",
   "scripts": {
     "start": "node src/service.mjs",
     "mcp": "node src/mcp.mjs",
@@ -23,9 +23,6 @@
     "chrome-devtools-mcp": "1.10.1",
     "http-proxy": "1.18.1",
     "ws": "8.22.0"
-  },
-  "igor": {
-    "extension": "./igor.extension.json"
   },
   "bin": {
     "igor-computer": "src/cli.mjs"
