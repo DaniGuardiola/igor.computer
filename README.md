@@ -12,13 +12,13 @@
 
 Agents get much more useful once they have a computer of their own, but the usual options are poor:
 
-- **Your own machine** gives the agent your whole personal session, files and accounts, and you can't keep working while it does.
+- **Your own machine** gives the agent your whole personal session, files and accounts, so one bad instruction or prompt injection can reach all of it, and you can't keep working while it does.
 - **A throwaway sandbox or headless browser** forgets everything between tasks, can't show a person what it's doing, and many sites block it.
-- **Hosted agent computers** like OpenAI Dots or Grok Bot ([comparison](docs/agent-computers.md)) are tied to one vendor's agent and run in their cloud.
+- **Hosted agent computers** like OpenAI Dots or Grok Bot ([comparison](docs/agent-computers.md)) are tied to one vendor's agent and run in their cloud, so your logins and data live on someone else's servers.
 
 igor.computer is that kind of agent computer, but it runs on your Mac or your
-own server, any agent can use it, and it's built from open standards you can
-change.
+own server, walled off in its own VM with only the logins you give it. Any agent
+can use it, and it's built from open standards you can change.
 
 ## What you get
 
