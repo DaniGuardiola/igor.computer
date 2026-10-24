@@ -1,7 +1,6 @@
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { connectStdio } from './mcp-clients.mjs';
 import { container } from './guest.mjs';
 
 export const separator = '__';
@@ -13,16 +12,12 @@ export class Providers {
   constructor(context, connect) {
     this.context = context;
     this.file = join(context.dir, 'providers.json');
-    this.connect = connect || (async (name, server) => {
-      const client = new Client({ name: 'igor-computer-' + name, version: '0.2.0' });
-      await client.connect(new StdioClientTransport({
-        command: 'docker',
-        args: ['exec', '-i', ...Object.entries(server.env).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
-          ...(server.cwd ? ['-w', server.cwd] : []), container, server.command, ...server.args],
-        env: context.env, stderr: 'inherit',
-      }));
-      return client;
-    });
+    this.connect = connect || ((name, server, onClose) => connectStdio({
+      command: 'docker',
+      args: ['exec', '-i', ...Object.entries(server.env).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
+        ...(server.cwd ? ['-w', server.cwd] : []), container, server.command, ...server.args],
+      env: context.env, onClose,
+    }));
   }
   // Tool lists are cached per manifest, so listing tools never wakes a computer.
   async cached() {
@@ -50,11 +45,10 @@ export class Providers {
     const previous = this.clients.get(name);
     if (previous && previous.key === JSON.stringify(server)) return previous.client;
     if (previous) { this.clients.delete(name); await previous.client.close().catch(() => {}); }
-    const client = await this.connect(name, server);
-    const entry = { client, key: JSON.stringify(server) };
+    const entry = { key: JSON.stringify(server) };
+    entry.client = await this.connect(name, server, () => { if (this.clients.get(name) === entry) this.clients.delete(name); });
     this.clients.set(name, entry);
-    client.onclose = () => { if (this.clients.get(name) === entry) this.clients.delete(name); };
-    return client;
+    return entry.client;
   }
   owns(manifest, tool) {
     const index = tool.indexOf(separator);
@@ -64,7 +58,7 @@ export class Providers {
     const index = request.name.indexOf(separator);
     const name = request.name.slice(0, index);
     const client = await this.client(name, manifest.mcp[name]);
-    return client.callTool({ name: request.name.slice(index + separator.length), arguments: request.arguments || {} }, undefined, { timeout: 120000, signal });
+    return client.callTool({ name: request.name.slice(index + separator.length), arguments: request.arguments || {} }, { timeout: 120000, signal });
   }
   // Container replacement ends every guest process; reconnect on next use.
   async close() {

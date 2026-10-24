@@ -6,14 +6,12 @@ import { Desktop } from './desktop.mjs';
 import { Runtime } from './runtime.mjs';
 import { Guest } from './guest.mjs';
 import { computerTools } from './computer-tools.mjs';
-import { createMcpServer } from './mcp-server.mjs';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createGateway } from './mcp-server.mjs';
+import { connectStdio } from './mcp-clients.mjs';
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import httpProxy from 'http-proxy';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { BrowserWorkspaces, recoveredRequest } from './browser-workspace.mjs';
 import { ComputerUse, desktopTools, desktopRequest } from './computer-use.mjs';
 import { Providers } from './providers.mjs';
@@ -26,8 +24,7 @@ const uiTools = desktopTools(JSON.parse(await readFile(join(base, 'computer-use-
 
 // The DevTools tool list is fixed by the pinned package; read it once without a browser.
 export async function devtoolsTools() {
-  const client = new Client({ name: 'igor-computer-catalog', version: '0.2.0' });
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [devtools, '--browser-url=http://127.0.0.1:9', '--no-usage-statistics', '--no-performance-crux'], stderr: 'ignore' }));
+  const client = await connectStdio({ command: process.execPath, args: [devtools, '--browser-url=http://127.0.0.1:9', '--no-usage-statistics', '--no-performance-crux'] });
   try { return (await client.listTools()).tools; } finally { await client.close(); }
 }
 
@@ -154,15 +151,13 @@ export async function createComputer({ context, appearance, browserTools, setupS
   const transportOptions = {
     command: process.execPath,
     args: [devtools, '--browser-url=' + context.cdpUrl, '--no-usage-statistics', '--no-performance-crux'],
-    stderr: 'inherit',
   };
   // DevTools clients start on a workspace's first browser command, not at server start.
   const browserClients = new Map();
   async function browserClient(workspace) {
     if (browserClients.has(workspace)) return browserClients.get(workspace);
     if (browserClients.size >= 32) throw new Error('Maximum 32 browser client workspaces.');
-    const client = new Client({ name: 'igor-computer-' + workspace, version: '0.2.0' });
-    const connecting = client.connect(new StdioClientTransport(transportOptions)).then(() => client);
+    const connecting = connectStdio({ ...transportOptions, onClose: () => { if (browserClients.get(workspace) === connecting) browserClients.delete(workspace); } });
     browserClients.set(workspace, connecting);
     try { return await connecting; }
     catch (error) { browserClients.delete(workspace); throw error; }
@@ -175,13 +170,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
     const matches = [...text.matchAll(/^(\d+):\s+(.*?)(?:\s+\[selected\])?$/gm)].filter(item => item[2] === target.url || item[2].endsWith(' (' + target.url + ')'));
     if (matches.length === 1) return Number(matches[0][1]);
   }, (name, state, context) => watch.openBackground(computer, name, state, context));
-  const computerUse = new ComputerUse(async workspace => {
-    const client = new Client({ name: 'igor-computer-' + workspace, version: '0.2.0' });
-    await client.connect(new StdioClientTransport({
-      command: 'docker', args: ['exec', '-i', container, ...guest.manifest.desktopTools], env: context.env, stderr: 'inherit',
-    }));
-    return client;
-  });
+  const computerUse = new ComputerUse((workspace, onClose) => connectStdio({ command: 'docker', args: ['exec', '-i', container, ...guest.manifest.desktopTools], env: context.env, onClose }));
   async function tools() {
     const manifest = guest.manifest;
     let provided = await providers.tools(manifest);
@@ -287,7 +276,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
               function: '(el) => { const r=el.getBoundingClientRect(); return {x:screenX+(outerWidth-innerWidth)/2+r.x+r.width/2,y:screenY+outerHeight-innerHeight+r.y+r.height/2}; }',
               args: [args.arguments.uid], waitForStableDom: false,
               ...(args.arguments.pageId !== undefined ? { pageId: args.arguments.pageId } : {}),
-            } }, undefined, { timeout: 2000, signal });
+            } }, { timeout: 2000, signal });
             const text = measured.content?.filter(item => item.type === 'text').map(item => item.text).join('\n') || '';
             const json = /\{[^{}]*"x"[^{}]*\}/.exec(text);
             if (json) point = JSON.parse(json[0]);
@@ -295,7 +284,7 @@ export async function createComputer({ context, appearance, browserTools, setupS
         }
         // Selecting a CDP page must not activate the shared physical desktop.
         const request = recoveredRequest({ ...args, arguments: { ...args.arguments, ...(args.name === 'select_page' ? { bringToFront: false } : {}) } }, recovery);
-        const result = await client.callTool(request, undefined, { timeout: 120000, signal });
+        const result = await client.callTool(request, { timeout: 120000, signal });
         if (!result.isError) recordActivity(workspace, args.name, { ...args.arguments, ...point }, { space: 'desktop' });
         return result;
       }, workspace, args.name === 'new_page' && args.arguments?.isolatedContext !== undefined);
@@ -303,18 +292,17 @@ export async function createComputer({ context, appearance, browserTools, setupS
     throw new Error('Unknown MCP route.');
   }
 
-  const mcpConnections = new Set();
   // Handles one computer-scoped request. path is relative to the computer.
   async function handle(req, res, path, { workspace, label }) {
     if (path === '/mcp') {
-      if (req.method !== 'POST') return json(res, { error: 'Use stateless streamable HTTP POST.' }, 405);
-      const mcp = createMcpServer((path, args, signal) => dispatch(path, args, signal, workspace, label));
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-      mcpConnections.add(mcp);
-      res.on('close', () => { mcpConnections.delete(mcp); void mcp.close(); });
-      await mcp.connect(transport);
-      await transport.handleRequest(req, res, await body(req));
-      return;
+      // Stateless: each request gets a gateway with this computer's current tools.
+      const gateway = createGateway((await dispatch('/tools')).tools, (path, args, signal) => dispatch(path, args, signal, workspace, label));
+      const request = new Request(new URL(req.url, 'http://igor.computer'), { method: req.method, headers: Object.entries(req.headers).filter(([, value]) => typeof value === 'string'),
+        ...(['GET', 'HEAD'].includes(req.method) ? {} : { body: JSON.stringify(await body(req)) }) });
+      const response = await gateway.handle(request);
+      res.writeHead(response.status, Object.fromEntries(response.headers));
+      if (response.body) for await (const chunk of response.body) res.write(chunk);
+      return res.end();
     }
     if (path.startsWith('/vnc/') && req.method === 'GET') {
       req.headers.authorization = await guest.displayAuthorization();
@@ -495,7 +483,6 @@ export async function createComputer({ context, appearance, browserTools, setupS
   }
   async function close() {
     disconnectViewer();
-    for (const mcp of mcpConnections) await mcp.close();
     watch.close();
     await computerUse.close();
     await providers.close();

@@ -37,7 +37,7 @@ flowchart TB
 - Each **computer** is a Lima VM with its own Docker daemon, running one container
   built from the computer's OS image.
 - **Agents** connect over MCP, either through the stdio bridge or over
-  authenticated HTTP. The default computer is at `/mcp`, and named computers are
+  authenticated HTTP. Both are served by [TanStack AI](tanstack.md)'s MCP server. The default computer is at `/mcp`, and named computers are
   at `/computers/NAME/mcp`.
 
 ## What agents can do
@@ -56,7 +56,7 @@ JavaScript. Navigating a page doesn't need screenshots or mouse clicks.
 | `computer_exec` | Shell commands, run as an unprivileged user. |
 | `computer_file` | Read, write or list files in `/workspace`, up to 512 KiB at a time. |
 | `computer_workspace` | List or select workspaces, and open or move browser windows. |
-| `computer_screenshot`, `computer_input` | Simple screenshot and input for the agent's own workspace. |
+| `computer_screenshot`, `computer_input` | Screenshots (or one region, for zooming) and mouse and keyboard on the agent's own workspace: clicks with any button and count, moves, presses and releases, keys, typing, pixel scrolling and the cursor position. |
 | `computer_begin_turn`, `computer_end_turn` | Keep the computer awake for a whole task. |
 | `computer_sleep`, `computer_wake` | Sleep or wake the computer explicitly. |
 | `browser_status` | Who controls the computer, its state, active turns and help requests. |

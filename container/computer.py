@@ -12,6 +12,8 @@ from windows import windows, generation, run
 
 ROOT = Path('/workspace')
 STATE = ROOT / '.igor'
+WIDTH, HEIGHT = 1440, 1000
+BUTTONS = (1, 2, 3, 8, 9)
 
 
 def workspace_path(value, allow_root=False):
@@ -196,31 +198,69 @@ def execute(action, args):
         descriptor, path = tempfile.mkstemp(suffix='.png')
         os.close(descriptor)
         try:
-            run('scrot', '-o', path)
-            return {'mimeType': 'image/png', 'data': base64.b64encode(Path(path).read_bytes()).decode(), 'width': 1440, 'height': 1000}
+            region = args.get('region')
+            if region is not None:
+                # A region of the screen at full resolution, for zooming in.
+                values = [region.get(key) if isinstance(region, dict) else None for key in ('x', 'y', 'width', 'height')]
+                if any(type(value) is not int for value in values) or values[0] < 0 or values[1] < 0 or values[2] < 1 or values[3] < 1 or values[0] + values[2] > WIDTH or values[1] + values[3] > HEIGHT:
+                    raise ValueError('Region must be inside the 1440x1000 screen.')
+                run('scrot', '-o', '-a', ','.join(map(str, values)), path)
+            else:
+                run('scrot', '-o', path)
+            return {'mimeType': 'image/png', 'data': base64.b64encode(Path(path).read_bytes()).decode(), 'width': region['width'] if region else WIDTH, 'height': region['height'] if region else HEIGHT}
         finally: os.unlink(path)
     if action == 'input':
         kind = args.get('kind')
+        def point():
+            x, y = args.get('x'), args.get('y')
+            if type(x) is not int or type(y) is not int or not 0 <= x < WIDTH or not 0 <= y < HEIGHT:
+                raise ValueError('Coordinates must be inside the 1440x1000 screen.')
+            return str(x), str(y)
+        def button():
+            value = args.get('button', 1)
+            if type(value) is not int or value not in BUTTONS:
+                raise ValueError('Button must be 1 (left), 2 (middle), 3 (right), 8 (back) or 9 (forward).')
+            return str(value)
+        def key(name='key'):
+            value = args.get(name)
+            if not isinstance(value, str) or not re.fullmatch(r'[a-zA-Z0-9_+]{1,80}', value):
+                raise ValueError('Use an X11 key combination such as ctrl+l or Return.')
+            return value
         if kind == 'click':
-            x, y, button = args.get('x'), args.get('y'), args.get('button', 1)
-            if type(x) is not int or type(y) is not int or not 0 <= x < 1440 or not 0 <= y < 1000 or type(button) is not int or button not in (1, 2, 3):
-                raise ValueError('Invalid click coordinates or button.')
-            run('xdotool', 'mousemove', str(x), str(y), 'click', str(button))
+            count = args.get('count', 1)
+            if type(count) is not int or not 1 <= count <= 3:
+                raise ValueError('Click count must be 1 to 3.')
+            if 'x' in args or 'y' in args: run('xdotool', 'mousemove', *point())
+            run('xdotool', 'click', '--repeat', str(count), '--delay', '80', button())
+        elif kind == 'move':
+            run('xdotool', 'mousemove', *point())
+        elif kind == 'down':
+            run('xdotool', 'mousedown', button())
+        elif kind == 'up':
+            run('xdotool', 'mouseup', button())
         elif kind == 'type':
             value = args.get('text')
             if not isinstance(value, str) or len(value) > 10000 or '\x00' in value:
                 raise ValueError('Invalid text, maximum 10000 characters.')
             run('xdotool', 'type', '--clearmodifiers', '--delay', '0', '--', value)
         elif kind == 'key':
-            value = args.get('key')
-            if not isinstance(value, str) or not re.fullmatch(r'[a-zA-Z0-9_+]{1,80}', value):
-                raise ValueError('Use an X11 key combination such as ctrl+l or Return.')
-            run('xdotool', 'key', '--clearmodifiers', value)
+            run('xdotool', 'key', '--clearmodifiers', key())
+        elif kind == 'keydown':
+            run('xdotool', 'keydown', key())
+        elif kind == 'keyup':
+            run('xdotool', 'keyup', key())
         elif kind == 'scroll':
-            amount = args.get('amount')
-            if type(amount) is not int or not 1 <= abs(amount) <= 20:
-                raise ValueError('Scroll amount must be -20 through 20, excluding zero.')
-            run('xdotool', 'click', '--repeat', str(abs(amount)), '--delay', '50', '5' if amount > 0 else '4')
+            # Wheel clicks: amount scrolls vertically; dx/dy are pixels, about 100 per click.
+            if 'x' in args or 'y' in args: run('xdotool', 'mousemove', *point())
+            dx, dy = args.get('dx', 0), args.get('dy', args.get('amount', 0) * 100 if type(args.get('amount', 0)) is int else None)
+            if type(dx) not in (int, float) or type(dy) not in (int, float) or (not dx and not dy) or abs(dx) > 20000 or abs(dy) > 20000:
+                raise ValueError('Scroll needs a non-zero amount or dx/dy in pixels.')
+            for delta, positive, negative in ((dy, '5', '4'), (dx, '7', '6')):
+                clicks = min(20, max(1, round(abs(delta) / 100))) if delta else 0
+                if clicks: run('xdotool', 'click', '--repeat', str(clicks), '--delay', '30', positive if delta > 0 else negative)
+        elif kind == 'cursor':
+            values = dict(line.split('=', 1) for line in run('xdotool', 'getmouselocation', '--shell').splitlines() if '=' in line)
+            return {'x': int(values['X']), 'y': int(values['Y'])}
         else: raise ValueError('Unknown input kind.')
         return {'ok': True}
     raise ValueError('Unknown computer action.')

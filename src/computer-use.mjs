@@ -85,10 +85,10 @@ export class ComputerUse {
     if (previous?.generation === generation) return previous.client;
     if (previous) { this.clients.delete(workspace); await previous.client.close(); }
     if (this.clients.size >= 32) throw new Error('Maximum 32 desktop clients.');
-    const client = await this.connect(workspace);
-    const entry = { client, generation };
+    const entry = { generation };
+    entry.client = await this.connect(workspace, () => { if (this.clients.get(workspace) === entry) this.clients.delete(workspace); });
+    const client = entry.client;
     this.clients.set(workspace, entry);
-    client.onclose = () => { if (this.clients.get(workspace) === entry) this.clients.delete(workspace); };
     return client;
   }
 
@@ -98,7 +98,7 @@ export class ComputerUse {
     const client = await this.client(workspace, generation);
     const entry = this.clients.get(workspace);
     const targeted = scopedSemanticRequest({ name, arguments: request.arguments || {} }, entry.snapshot);
-    const result = await client.callTool(targeted, undefined, { timeout: 120000, signal });
+    const result = await client.callTool(targeted, { timeout: 120000, signal });
     const value = resultData(result);
     if (name === 'get_app_state' && !result.isError) {
       entry.snapshot = scopedDesktopState(value || {});

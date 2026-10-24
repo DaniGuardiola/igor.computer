@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { stateDir, origin } from '../src/config.mjs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const token = (await readFile(homedir() + '/Library/Application Support/igor.computer/token', 'utf8')).trim();
-const origin = 'http://127.0.0.1:18420';
+const token = (await readFile(join(stateDir, 'token'), 'utf8')).trim();
 const headers = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 async function rpc(path, args) {
   const response = await fetch(origin + path, { method: args === undefined ? 'GET' : 'POST', headers,
@@ -22,7 +22,7 @@ if (status.mode !== 'agent') {
   await rpc('/resume', {});
 }
 const client = new Client({ name: 'igor-computer-live-check', version: '1' });
-await client.connect(new StdioClientTransport({ command: process.execPath, args: ['src/mcp.mjs'] }));
+await client.connect(new StdioClientTransport({ command: process.execPath, args: ['src/mcp.mjs'], env: process.env }));
 try {
   const tools = (await client.listTools()).tools;
   for (const name of ['new_page', 'take_snapshot', 'browser_request_human', 'browser_wait_human']) {

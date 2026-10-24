@@ -21,7 +21,7 @@ export class BrowserWorkspaces {
     const state = await this.computer('workspace_create', { name, ...(label !== name ? { label } : {}) });
     const desktop = state.workspaces.find(workspace => workspace.name === (name === 'user' ? 'shared' : name))?.desktop;
     const entries = state.windows.filter(window => window.desktop === desktop && /chromium/i.test(window.app));
-    const call = (name, args = {}) => client.callTool({ name, arguments: args }, undefined, { timeout: 120000 });
+    const call = (name, args = {}) => client.callTool({ name, arguments: args }, { timeout: 120000 });
     if (entries.length && !this.prepared.has(name) && this.resolvePage) {
       const pageId = await this.resolvePage(name, state, client).catch(() => undefined);
       if (pageId !== undefined) {

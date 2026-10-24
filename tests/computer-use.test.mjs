@@ -30,25 +30,24 @@ test('desktop snapshots use separate clients per workspace and reset after guest
   assert.equal(closed, 3);
 });
 
-test('MCP routes desktop tools independently and preserves native image output', async () => {
-  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
-  const { createMcpServer } = await import('../src/mcp-server.mjs');
+test('the MCP gateway routes desktop tools independently and preserves native image output', async () => {
+  const { createGateway } = await import('../src/mcp-server.mjs');
   const calls = [];
   const result = { content: [{ type: 'image', mimeType: 'image/png', data: 'cG5n' }] };
-  const server = createMcpServer(async (path, args) => {
-    calls.push({ path, args });
-    return path === '/tools' ? { tools: [] } : result;
-  });
-  const client = new Client({ name: 'test', version: '1' });
-  const [a, b] = InMemoryTransport.createLinkedPair();
-  await Promise.all([server.connect(a), client.connect(b)]);
-  try {
-    assert.deepEqual(await client.callTool({ name: 'computer_ui_get_app_state', arguments: {} }), result);
-    assert.equal(calls.at(-1).path, '/computer-use');
-    await client.callTool({ name: 'new_page', arguments: { url: 'about:blank' } });
-    assert.equal(calls.at(-1).path, '/call');
-  } finally { await client.close(); await server.close(); }
+  const tools = [{ name: 'computer_ui_get_app_state', inputSchema: { type: 'object' } }, { name: 'new_page', inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] } }];
+  const gateway = createGateway(tools, async (path, args) => { calls.push({ path, args }); return result; });
+  const rpc = async (id, method, params) => {
+    const response = await gateway.handle(new Request('http://igor.computer/mcp', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' }, body: JSON.stringify({ jsonrpc: '2.0', id, method, params }) }));
+    return JSON.parse(/data: (.*)/.exec(await response.text())[1]).result;
+  };
+  await rpc(1, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
+  assert.ok((await rpc(2, 'tools/list', {})).tools.some(tool => tool.name === 'browser_wait_human'));
+  assert.deepEqual(await rpc(3, 'tools/call', { name: 'computer_ui_get_app_state', arguments: {} }), result);
+  assert.equal(calls.at(-1).path, '/computer-use');
+  await rpc(4, 'tools/call', { name: 'new_page', arguments: { url: 'about:blank' } });
+  assert.equal(calls.at(-1).path, '/call');
+  assert.equal((await rpc(5, 'tools/call', { name: 'new_page', arguments: {} })).isError, true);
+  assert.equal(calls.length, 2);
 });
 
 
