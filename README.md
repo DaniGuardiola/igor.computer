@@ -126,7 +126,18 @@ Codex needs one more setting; see [Connect your agent](docs/agents.md).
 ## Make your own computer
 
 The default computer is a clean Debian desktop with a shell, Python, Git and
-Chromium. Build one with your team's tools, repos and services:
+Chromium. Build one with your own tools, repos and services.
+
+The easiest way is to let your agent do it. Give it the
+[create-computer skill](skills/create-computer/SKILL.md), or paste this:
+
+```text
+Help me create an igor.computer computer. Follow
+https://github.com/DaniGuardiola/igor.computer/blob/main/skills/create-computer/SKILL.md:
+ask me what I need, then write, check and create the definition.
+```
+
+Or do it by hand:
 
 ```sh
 igor-computer init ~/my-computer                 # writes .igor-computer/devcontainer.json
@@ -190,3 +201,4 @@ but it doesn't depend on Igor.
 - [Development](docs/development.md): building, testing, distribution
 - [Using with Igor](docs/igor.md)
 - [Agent skill](skills/igor-computer/SKILL.md): instructions to give your agent
+- [Create-computer skill](skills/create-computer/SKILL.md): lets your agent design a computer with you
