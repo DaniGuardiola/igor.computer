@@ -2,9 +2,11 @@ FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium chromium-sandbox xvfb openbox x11vnc novnc websockify \
     feh xsettingsd gnome-themes-extra-data xdg-desktop-portal-gtk dbus dbus-x11 at-spi2-core libglib2.0-bin gsettings-desktop-schemas libxkbcommon0 socat python3 python3-venv python3-pip git curl xdotool scrot tini wmctrl x11-utils ca-certificates fonts-liberation fonts-noto-color-emoji \
+    xfce4-terminal flatpak gnome-software gnome-software-plugin-flatpak adwaita-icon-theme librsvg2-common \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's|<popupTime>[0-9]*</popupTime>|<popupTime>0</popupTime>|' /etc/xdg/openbox/rc.xml \
-    && useradd --create-home --uid 1000 browser \
+    && ln -s /var/lib/dbus/machine-id /etc/machine-id \
+    && useradd --create-home --uid 1000 --shell /bin/bash browser \
     && mkdir /profile /workspace && chown browser:browser /profile /workspace
 # Pinned upstream release; verify each supported architecture against its hash.
 RUN set -eu; case "$(dpkg --print-architecture)" in \
@@ -14,7 +16,8 @@ RUN set -eu; case "$(dpkg --print-architecture)" in \
     curl -fL --retry 3 "https://github.com/agent-sh/computer-use-linux/releases/download/v0.7.15/computer-use-linux-$target-unknown-linux-gnu" -o /usr/local/bin/computer-use-linux; \
     echo "$checksum  /usr/local/bin/computer-use-linux" | sha256sum -c -; \
     chmod 755 /usr/local/bin/computer-use-linux
-COPY supervisor.py windows.py computer.py setup.py apps.py frame.py roster.py appearance.py /opt/igor-computer/
+COPY supervisor.py windows.py computer.py setup.py apps.py frame.py roster.py appearance.py flathub.flatpakrepo system-bus.conf /opt/igor-computer/
+COPY xfce4-terminal.xml /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/
 ARG IGOR_RUNTIME_REVISION
 # The OS contract: how igor.computer reaches this OS's display, control,
 # browsers and tools. Custom images keep or replace this label.
@@ -22,6 +25,6 @@ LABEL ai.igor.computer.base=1 \
       ai.igor.computer.os="{\"contract\":1,\"control\":[\"python3\",\"/opt/igor-computer/computer.py\"],\"setup\":[\"python3\",\"/opt/igor-computer/setup.py\"],\"display\":{\"port\":6080,\"auth\":\"/tmp/igor-computer-display-auth\"},\"browsers\":[{\"name\":\"chromium\",\"cdpPort\":9222}],\"desktopTools\":[\"computer-use-linux\",\"mcp\"],\"mcp\":{}}" \
       ai.igor.computer.runtime-revision=$IGOR_RUNTIME_REVISION
 USER browser
-ENV DISPLAY=:99 DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/igor-session-bus XDG_RUNTIME_DIR=/tmp/igor-runtime XDG_SESSION_TYPE=x11 COMPUTER_USE_LINUX_INDICATOR=0
+ENV DISPLAY=:99 XDG_DATA_DIRS=/home/browser/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/igor-session-bus DBUS_SYSTEM_BUS_ADDRESS=unix:path=/tmp/igor-system-bus XDG_RUNTIME_DIR=/tmp/igor-runtime XDG_SESSION_TYPE=x11 COMPUTER_USE_LINUX_INDICATOR=0
 EXPOSE 9222 6080
 ENTRYPOINT ["/usr/bin/tini", "--", "python3", "/opt/igor-computer/supervisor.py"]

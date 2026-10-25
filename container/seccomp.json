@@ -1231,6 +1231,15 @@
         "chroot"
       ],
       "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "mount",
+        "umount2",
+        "pivot_root"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "comment": "Flatpak sandboxes apps with bubblewrap, which mounts inside its own user namespace. Without CAP_SYS_ADMIN the kernel still refuses mounts anywhere else."
     }
   ]
 }

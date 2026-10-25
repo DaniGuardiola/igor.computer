@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Terminal defaults: follow the desktop's light or dark theme. -->
+<channel name="xfce4-terminal" version="1.0">
+  <property name="color-use-theme" type="bool" value="true"/>
+</channel>

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { hash } from './definition.mjs';
@@ -10,14 +10,15 @@ const exec = promisify(execFile);
 
 export const baseImage = 'igor-computer-base';
 export const finalImage = 'igor-computer:current';
-const baseFiles = ['Dockerfile', 'supervisor.py', 'windows.py', 'computer.py', 'setup.py', 'seccomp.json'];
 const buildTimeout = 30 * 60 * 1000;
 // Bump when the generated final layer changes, so existing computers rebuild.
 const layerVersion = 2;
 
+// Every file in the base image's build context, so any change rebuilds it.
 export async function baseRevision(root = join(runtimeRoot, 'container')) {
   const parts = [];
-  for (const name of baseFiles) parts.push([name, (await readFile(join(root, name))).toString('base64')]);
+  const names = (await readdir(root, { withFileTypes: true })).filter(entry => entry.isFile() && !entry.name.startsWith('.')).map(entry => entry.name).sort();
+  for (const name of names) parts.push([name, (await readFile(join(root, name))).toString('base64')]);
   return hash(parts);
 }
 
@@ -138,6 +139,9 @@ export class ImageBuilder {
     await this.run(['run', '-d', '--name', container, '--restart', 'unless-stopped',
       '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges=true',
       '--security-opt', `seccomp=${join(runtimeRoot, 'container/seccomp.json')}`,
+      // Flatpak's bubblewrap sandbox mounts its own /proc, which Docker's AppArmor
+      // profile and /proc masks refuse. The VM stays the isolation boundary.
+      '--security-opt', 'apparmor=unconfined', '--security-opt', 'systempaths=unconfined',
       '--shm-size', '512m', '--memory', `${Math.max(1, memory - 1)}g`, '--cpus', String(cpus),
       // Lima forwards these VM ports to the computer's own host ports.
       '-p', `127.0.0.1:18423:${manifest.display.port}`, ...(manifest.browsers[0] ? ['-p', `127.0.0.1:18422:${manifest.browsers[0].cdpPort}`] : []),

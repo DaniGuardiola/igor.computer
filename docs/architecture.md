@@ -133,7 +133,8 @@ shown.
 
 **Viewer extras.** A taskbar under the desktop has an apps menu. It lists the
 graphical apps installed in the computer, from their standard `.desktop` files.
-Pin apps there and reorder them by dragging. Launching, focusing or closing apps
+Chromium, the terminal and the app store are pinned to start with. Pin apps
+there and reorder them by dragging. Launching, focusing or closing apps
 requires control. Switching workspaces fades through the workspace's picture and
 name, unless reduced motion is on.
 
@@ -179,6 +180,10 @@ Open help requests survive restarts.
 - The VM has no access to your files or SSH agent unless a definition adds bind
   mounts. Chromium is stock and sandboxed. The container runs unprivileged, with
   all Linux capabilities dropped and a seccomp profile.
+- So that Flatpak can sandbox apps, the container runs without Docker's AppArmor
+  profile and `/proc` masks, and its seccomp profile allows mounts. The kernel
+  permits those mounts only inside a process's own user namespace. The VM, not
+  the container, is the isolation boundary.
 - The desktop stream inside the VM is password-protected with a random
   credential. Web pages in the computer's own browser therefore can't take over
   the desktop through localhost.

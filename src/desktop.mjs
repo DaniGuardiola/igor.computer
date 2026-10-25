@@ -5,7 +5,7 @@ export class Desktop {
   constructor(directory, operations = {}) { this.operations = operations; this.file = join(directory, 'desktop.json'); this.writes = Promise.resolve(); }
   async preferences() {
     try { return JSON.parse(await readFile(this.file, 'utf8')); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; return { pins: ['chromium.desktop'], profiles: {} }; }
+    catch (error) { if (error.code !== 'ENOENT') throw error; return { pins: ['chromium.desktop', 'xfce4-terminal.desktop', 'org.gnome.Software.desktop'], profiles: {} }; }
   }
   async update(change) {
     const next = this.writes.then(async () => {
@@ -22,7 +22,9 @@ export class Desktop {
     if (!this.cached || Date.now() - this.cached.at > 30000) {
       this.cached = { at: Date.now(), apps: (await this.operations.computer('apps')).apps };
     }
-    return { apps: this.cached.apps, pins: (await this.preferences()).pins };
+    // Pins of apps this OS lacks or that were uninstalled stay hidden.
+    const { apps } = this.cached;
+    return { apps, pins: (await this.preferences()).pins.filter(id => apps.some(app => app.id === id)) };
   }
   async pin(ids) {
     const { apps } = await this.catalog();

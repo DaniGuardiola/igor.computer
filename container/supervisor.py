@@ -73,8 +73,10 @@ try:
         raise RuntimeError('Virtual display failed to start')
     os.makedirs(os.environ['XDG_RUNTIME_DIR'], mode=0o700, exist_ok=True)
     start(['dbus-daemon', '--session', '--nofork', '--address=' + os.environ['DBUS_SESSION_BUS_ADDRESS']])
+    # GNOME Software needs a system bus to start. This one runs no services.
+    start(['dbus-daemon', '--config-file=/opt/igor-computer/system-bus.conf', '--nofork', '--nopidfile'])
     for _ in range(100):
-        if os.path.exists('/tmp/igor-session-bus'):
+        if os.path.exists('/tmp/igor-session-bus') and os.path.exists('/tmp/igor-system-bus'):
             break
         time.sleep(0.05)
     else:
@@ -84,6 +86,10 @@ try:
                            '/org/a11y/bus', 'org.a11y.Bus.GetAddress'])
     subprocess.check_call(['gsettings', 'set', 'org.gnome.desktop.interface', 'toolkit-accessibility', 'true'])
     start(['openbox'])
+    # Flathub backs the app store. Installs are per user, so they live in the
+    # home volume and survive rebuilds.
+    subprocess.run(['flatpak', 'remote-add', '--user', '--if-not-exists', 'flathub', '/opt/igor-computer/flathub.flatpakrepo'],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # Restore workspace count before clients place windows.
     state = '/workspace/.igor/workspaces.json'
     if os.path.exists(state):

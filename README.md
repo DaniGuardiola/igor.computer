@@ -51,7 +51,7 @@ of sandboxed agent computer, but on your own Mac or server.
 <table>
   <tr>
     <td>🖥️ <b>A full Linux computer</b></td>
-    <td>Shell, persistent <code>/workspace</code>, desktop apps and any tools you install.</td>
+    <td>Shell, persistent <code>/workspace</code>, a terminal, an app store for desktop apps, and any tools you install.</td>
   </tr>
   <tr>
     <td>🌐 <b>A browser with real logins</b></td>
@@ -183,7 +183,7 @@ igor.computer is a thin layer over existing tools, and you can swap out any part
 | Layer | What it does | Built on |
 | --- | --- | --- |
 | **Hardware** | Runs each computer as a VM, sleeps and wakes it, serves agents and viewers, decides who controls the desktop. | [Lima](https://lima-vm.io), [QEMU](https://www.qemu.org), [MCP](https://modelcontextprotocol.io) via [TanStack AI](docs/tanstack.md), [noVNC](https://novnc.com) |
-| **OS** | Any container image that meets a small [OS contract](docs/computers.md#the-os-contract). The base image is Debian with a desktop, a shell, Python, Git and Chromium. | Docker / OCI, [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) |
+| **OS** | Any container image that meets a small [OS contract](docs/computers.md#the-os-contract). The base image is Debian with a desktop, a shell and terminal, Python, Git, Chromium and a Flathub app store. | Docker / OCI, [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) |
 | **Definition** | Your computer's packages, repos, services, MCP servers, mounts and secrets. | [devcontainer.json](https://containers.dev) |
 
 ## Status

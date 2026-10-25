@@ -18,6 +18,16 @@ test('pins persist and accept only installed app IDs, not commands or paths', as
   await desktop.pin([]);assert.deepEqual((await desktop.catalog()).pins,[]);
  } finally { await rm(root,{recursive:true,force:true}); }
 });
+test('default pins include the terminal and app store when the OS has them', async () => {
+ const root=await mkdtemp(join(tmpdir(),'igor-desktop-'));
+ try {
+  const ids=['chromium.desktop','org.gnome.Software.desktop','xfce4-terminal.desktop'];
+  assert.deepEqual((await new Desktop(root,{computer:async()=>({apps:ids.map(id=>({id}))})}).catalog()).pins,['chromium.desktop','xfce4-terminal.desktop','org.gnome.Software.desktop']);
+  const desktop=new Desktop(root,{computer:async()=>({apps:[{id:'chromium.desktop'}]})});
+  assert.deepEqual((await desktop.catalog()).pins,['chromium.desktop']);
+  await desktop.pin(['chromium.desktop']);
+ } finally { await rm(root,{recursive:true,force:true}); }
+});
 test('profile updates preserve stable workspace identity, desktop and windows', async()=>{
  const root=await mkdtemp(join(tmpdir(),'igor-profile-'));
  try {

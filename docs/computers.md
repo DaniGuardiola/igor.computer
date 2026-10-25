@@ -146,9 +146,11 @@ three volumes (`/profile`, `/home/browser`, `/workspace`), and the platform
 publishes the display and first CDP port to the VM.
 
 The base image (`container/`) is Debian with Xvfb, Openbox, x11vnc, noVNC,
-Chromium and computer-use-linux. Definitions extend it. A completely different
-OS (say Ubuntu with a different window manager) only needs to implement the
-contract.
+Chromium and computer-use-linux, plus Xfce Terminal and an app store (GNOME
+Software with Flathub). Apps from the store install per user, without root, so
+they live in `/home/browser` and survive rebuilds. Definitions extend it. A
+completely different OS (say Ubuntu with a different window manager) only needs
+to implement the contract.
 
 ## Current limits
 

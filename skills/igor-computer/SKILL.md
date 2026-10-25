@@ -16,7 +16,9 @@ sessions. A person can watch it and take control.
 tests, git and other command-line tools. Keep your files in `/workspace`, which
 persists; `computer_file` reads and writes files there directly. Tools you
 install under your home folder persist too. System packages belong in the
-computer's definition.
+computer's definition. Desktop apps install from Flathub without root
+(`flatpak install --user -y flathub APP_ID`), persist, and show up in the
+person's apps menu.
 
 A computer's definition can add MCP servers that run inside it. Their tools are
 named `server__tool` (for example `files__read_file`). Prefer them over shell
