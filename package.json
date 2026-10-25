@@ -1,6 +1,6 @@
 {
   "name": "igor-computer",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "A real, persistent computer for AI agents, on your own machine: a Linux desktop and browser that agents drive over MCP and you can step into.",
