@@ -66,10 +66,19 @@ notarize() {
     return 1
   fi
 }
+# Apple's ticket service sometimes drops the connection; stapling is safe to repeat.
+staple() {
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    xcrun stapler staple "$1" && xcrun stapler validate "$1" && return 0
+    echo "Stapling $1 failed (attempt $attempt), retrying." >&2
+    sleep $((attempt * 10))
+  done
+  return 1
+}
 ditto -c -k --keepParent "$app" "$temporary/notarize.zip"
 notarize "$temporary/notarize.zip" "$root/release-output/app-notarization.json"
-xcrun stapler staple "$app"
-xcrun stapler validate "$app"
+staple "$app"
 spctl --assess --type execute --verbose "$app"
 bash scripts/package-dmg.sh
 version=$(node -p "require('./package.json').version")
@@ -77,8 +86,7 @@ dmg="$root/release-output/igor.computer-$version-arm64.dmg"
 mv "build/dmg/igor.computer-$version-arm64.dmg" "$dmg"
 codesign --sign "$identity" --timestamp "$dmg"
 notarize "$dmg" "$root/release-output/dmg-notarization.json"
-xcrun stapler staple "$dmg"
-xcrun stapler validate "$dmg"
+staple "$dmg"
 (cd release-output && shasum -a 256 "$(basename "$dmg")" > SHA256SUMS)
 python3 - "$version" <<'PY'
 import json, os, sys
